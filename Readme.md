@@ -27,19 +27,19 @@ ALC Engine (Ai Assistant Lite Cloud Engine) 是一个集成了AI智能对话与�
 
 - 通过调用大宗虚拟文件夹，实现对一类文件资源的快速使用和关联
 
-![](E:\ALC Engine\image\dazong.png)
+![dazong](image/dazong.png)
 
 - 通过占位虚拟文件夹，代表逻辑上未开发的文件
 
-![](E:\ALC Engine\image\placeholder.png)
+![placeholder](image/placeholder.png)
 
 - 通过调用实体虚拟文件夹，实现某类资源集合的多次重复使用
 
-![](E:\ALC Engine\image\leg.png)
+![leg](image/leg.png)
 
 - 建议虚拟文件夹多表示一类概念，并整理子概念的关系
 
-![](E:\ALC Engine\image\spider.png)
+![spider](image/spider.png)
 
 ****
 
@@ -47,7 +47,7 @@ ALC Engine (Ai Assistant Lite Cloud Engine) 是一个集成了AI智能对话与�
 
 通过文件的上传、更新等，实现多人的逻辑同步
 
-![](E:\ALC Engine\image\cloudfile.260407.png)
+![cloudfile](image/cloudfile.260407.png)
 
 
 
