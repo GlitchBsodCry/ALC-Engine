@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/postgres:18
+    container_name: postgres
+    hostname: postgres
+    ports:
+      - "5432:5432"      # PostgreSQL 默认端口
+    volumes:
+      - E:\docker-data\postgres\data:/var/lib/postgresql/data  # 持久化数据到E盘
+    environment:
+      - POSTGRES_DB=alc_engine
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  rabbitmq:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/rabbitmq:4.2-management
+    container_name: rabbitmq
+    hostname: rabbitmq
+    ports:
+      - "5672:5672"      # AMQP 协议端口（你的项目连接用这个）
+      - "15672:15672"    # 管理界面端口（浏览器访问）
+    volumes:
+      - E:\docker-data\rabbitmq\data:/var/lib/rabbitmq  # 持久化消息数据到E盘
+      - E:\docker-data\rabbitmq\logs:/var/log/rabbitmq  # 持久化日志到E盘
+    environment:
+      - RABBITMQ_DEFAULT_USER=guest
+      - RABBITMQ_DEFAULT_PASS=guest
+      - RABBITMQ_ERLANG_COOKIE=secret_cookie_here  # 集群用，单机可忽略
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  minio:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+    container_name: minio
+    hostname: minio
+    ports:
+      - "9000:9000"      # Minio API 端口
+      - "9001:9001"      # Minio 控制台端口
+    volumes:
+      - E:\docker-data\minio\data:/data  # 持久化数据到E盘
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+# 使用绑定挂载到E盘，不再需要volumes定义
+# 启动: docker-compose up -d
+# 停止: docker-compose down
+# 清理数据: 手动删除 E:\docker-data\rabbitmq 目录

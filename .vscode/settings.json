@@ -1,0 +1,26 @@
+{
+    "dbcode.connections": [
+        {
+            "connectionId": "6GiJ51R6g-hmDRAOa2GTz",
+            "name": "alc_engine",
+            "driver": "postgres",
+            "connectionType": "host",
+            "host": "localhost",
+            "port": 5432,
+            "ssl": false,
+            "authMethod": "password",
+            "username": "postgres",
+            "password": "",
+            "savePassword": "secretStorage",
+            "database": "alc_engine",
+            "readOnly": false,
+            "role": "development",
+            "postConnectionSqlType": "inline",
+            "connectionTimeout": 30,
+            "pinnedConnectionTimeout": "0",
+            "introspection": {
+                "progressive": false
+            }
+        }
+    ]
+}
