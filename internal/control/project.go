@@ -15,6 +15,7 @@ var VirtualFolderService *service.VirtualFolderService
 var FileService *service.FileService
 var MountRelationService *service.MountRelationService
 var TagService *service.TagService
+var CallRelationService *service.CallRelationService
 
 func InitProjectService(svc *service.ProjectService) {
 	ProjectService = svc
@@ -36,6 +37,10 @@ func InitTagService(svc *service.TagService) {
 	TagService = svc
 }
 
+func InitCallRelationService(svc *service.CallRelationService) {
+	CallRelationService = svc
+}
+
 func CreateProject(c *gin.Context) {
 	var req model.CreateProjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -43,7 +48,7 @@ func CreateProject(c *gin.Context) {
 		return
 	}
 
-	userID := c.GetUint("user_id")		// 从请求头中获取用户ID
+	userID := c.GetUint("user_id") // 从请求头中获取用户ID
 
 	ctx := c.Request.Context()
 	err := ProjectService.CreateProjectService(ctx, userID, req)
@@ -77,17 +82,16 @@ func GetProjectList(c *gin.Context) {
 func GetProjectMembers(c *gin.Context) {
 
 	projectIDStr := c.Query("project_id")
-    if projectIDStr == "" {
-        errors.ParamError(c, "项目ID不能为空")
-        return
-    }
-    
-    projectID, err := strconv.ParseUint(projectIDStr, 10, 32)
-    if err != nil {
-        errors.ParamError(c, "项目ID无效")
-        return
-    }
+	if projectIDStr == "" {
+		errors.ParamError(c, "项目ID不能为空")
+		return
+	}
 
+	projectID, err := strconv.ParseUint(projectIDStr, 10, 32)
+	if err != nil {
+		errors.ParamError(c, "项目ID无效")
+		return
+	}
 
 	ctx := c.Request.Context()
 	members, err := ProjectService.GetProjectMembersService(ctx, uint(projectID))
@@ -403,7 +407,7 @@ func GetProjectEvents(c *gin.Context) {
 	// 这是一个占位函数，实际实现需要集成SSE功能
 	// 目前返回空数据，表示功能待实现
 	errors.Success(c, gin.H{
-		"events": []interface{}{},
+		"events":  []interface{}{},
 		"message": "实时事件功能待实现",
 	})
 }
@@ -873,5 +877,64 @@ func GetVirtualFoldersByTagID(c *gin.Context) {
 	errors.Success(c, gin.H{
 		"virtual_folders": virtualFolders,
 		"total":           len(virtualFolders),
+	})
+}
+
+// CreateCallRelation 创建虚拟文件夹调用关系
+func CreateCallRelation(c *gin.Context) {
+	var req struct {
+		CallerFolderID uint `json:"caller_folder_id" binding:"required"`
+		CalledFolderID uint `json:"called_folder_id" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errors.ParamError(c, err.Error())
+		return
+	}
+
+	// 从路径参数获取项目ID
+	projectIDStr := c.Param("project_id")
+	projectID, err := strconv.ParseUint(projectIDStr, 10, 32)
+	if err != nil || projectID == 0 {
+		errors.ParamError(c, "项目ID不能为空或无效")
+		return
+	}
+
+	userID := c.GetUint("user_id")
+
+	ctx := c.Request.Context()
+	err = CallRelationService.CreateCallRelation(ctx, uint(projectID), req.CallerFolderID, req.CalledFolderID, userID)
+	if err != nil {
+		errors.Error(c, errors.InternalError, err)
+		return
+	}
+
+	errors.Success(c, gin.H{
+		"message":          "调用关系创建成功",
+		"caller_folder_id": req.CallerFolderID,
+		"called_folder_id": req.CalledFolderID,
+	})
+}
+
+// GetFolderInfo 查询虚拟文件夹基本信息
+func GetFolderInfo(c *gin.Context) {
+	folderIDStr := c.Param("folder_id")
+	folderID, err := strconv.ParseUint(folderIDStr, 10, 32)
+	if err != nil || folderID == 0 {
+		errors.ParamError(c, "文件夹ID不能为空或无效")
+		return
+	}
+
+	userID := c.GetUint("user_id")
+
+	ctx := c.Request.Context()
+	folder, err := VirtualFolderService.GetVirtualFolderByID(ctx, userID, uint(folderID))
+	if err != nil {
+		errors.Error(c, errors.InternalError, err)
+		return
+	}
+
+	errors.Success(c, gin.H{
+		"folder":  folder,
+		"message": "文件夹信息获取成功",
 	})
 }

@@ -75,6 +75,15 @@ func SetupRouter() (*gin.Engine, error) {
 		rprojectSpecific.DELETE("/folders/:folder_id", middleware.ProjectAuthMiddleware("owner"), control.DeleteVirtualFolder)
 		rprojectSpecific.PUT("/folders/move", middleware.ProjectAuthMiddleware("owner"), control.MoveVirtualFolder)
 
+		// 根据标签查询虚拟文件夹 - viewer及以上权限
+		rprojectSpecific.GET("/folders/by-tag/:tag_id", middleware.ProjectAuthMiddleware("viewer"), control.GetVirtualFoldersByTagID)
+
+		// 创建调用关系 - admin及以上权限
+		rprojectSpecific.POST("/folders/call-relation", middleware.ProjectAuthMiddleware("admin"), control.CreateCallRelation)
+
+		// 查询虚拟文件夹基本信息 - viewer及以上权限
+		rprojectSpecific.GET("/folders/:folder_id", middleware.ProjectAuthMiddleware("viewer"), control.GetFolderInfo)
+
 		// 文件相关路由 - viewer及以上权限下载，member及以上权限上传
 		rprojectSpecific.GET("/cloud/download/:cloud_file_id", middleware.ProjectAuthMiddleware("viewer"), control.GetDownloadURLHandler)
 		rprojectSpecific.POST("/cloud/sync", middleware.ProjectAuthMiddleware("viewer"), control.SyncCloudFileHandler)

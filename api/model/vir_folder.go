@@ -40,7 +40,7 @@ type VirtualFolder struct {
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
-type RealFile struct {//已淘汰
+type RealFile struct { //已淘汰
 	ID        uint `json:"id" gorm:"primaryKey"`
 	UserID    uint `json:"user_id" gorm:"not null"`
 	ProjectId uint `json:"project_id" gorm:"not null"`
@@ -54,9 +54,9 @@ type RealFile struct {//已淘汰
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
-type NewRealFile struct{
-	ID        uint `json:"id" gorm:"primaryKey"`
-	UserID    uint `json:"user_id" gorm:"not null"`
+type NewRealFile struct {
+	ID     uint `json:"id" gorm:"primaryKey"`
+	UserID uint `json:"user_id" gorm:"not null"`
 
 	Name string `json:"name" gorm:"size:50;not null"`
 	Path string `json:"path" gorm:"size:255;not null"`
@@ -67,16 +67,15 @@ type NewRealFile struct{
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
-type NewCloudFile struct{
-	ID        uint `json:"id" gorm:"primaryKey"`
-	NewRealFileID     uint   `json:"new_real_file_id" gorm:"not null;index"` // 关联权威文件
-	ProjectId uint `json:"project_id" gorm:"not null"`
-	RootID    uint `json:"root_id" gorm:"not null"` // 根文件夹ID
-
+type NewCloudFile struct {
+	ID            uint `json:"id" gorm:"primaryKey"`
+	NewRealFileID uint `json:"new_real_file_id" gorm:"not null;index"` // 关联权威文件
+	ProjectId     uint `json:"project_id" gorm:"not null"`
+	RootID        uint `json:"root_id" gorm:"not null"` // 根文件夹ID
 
 	CloudStroageKey string `json:"cloud_storage_key" gorm:"size:255;not null;unique"` // MinIO键
-	Bucket            string `json:"bucket" gorm:"size:50;not null"`         // MinIO桶
-	MimeType string `json:"mime_type" gorm:"size:127;not null"`   // MIME类型，如 “image/png” 从可信源minio异步获取
+	Bucket          string `json:"bucket" gorm:"size:50;not null"`                    // MinIO桶
+	MimeType        string `json:"mime_type" gorm:"size:127;not null"`                // MIME类型，如 “image/png” 从可信源minio异步获取
 
 	Name string `json:"name" gorm:"size:50;not null"`
 	Hash string `json:"hash" gorm:"size:255;not null"` // 文件哈希值，用于校验文件完整性
@@ -87,18 +86,18 @@ type NewCloudFile struct{
 }
 
 type NewCloudFileLocal struct {
-	ID          uint      `json:"id" gorm:"primaryKey"`
-	UserID          uint   `json:"user_id" gorm:"not null;index"`           // 本地用户
-	NewCloudFileID  uint   `json:"new_cloud_file_id" gorm:"not null;index"` // 关联云文件
-	LocalPath   string    `json:"local_path" gorm:"size:255;not null"` // 本地存储路径
-	ETag              string    `json:"etag" gorm:"size:255"` // 最后一次同步时云端文件的ETag
+	ID             uint   `json:"id" gorm:"primaryKey"`
+	UserID         uint   `json:"user_id" gorm:"not null;index"`           // 本地用户
+	NewCloudFileID uint   `json:"new_cloud_file_id" gorm:"not null;index"` // 关联云文件
+	LocalPath      string `json:"local_path" gorm:"size:255;not null"`     // 本地存储路径
+	ETag           string `json:"etag" gorm:"size:255"`                    // 最后一次同步时云端文件的ETag
 
-	LastSync    time.Time `json:"last_sync" gorm:"autoUpdateTime"`     // 最后同步时间
-	CreatedAt   time.Time `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt   time.Time `json:"updated_at" gorm:"autoUpdateTime"`
+	LastSync  time.Time `json:"last_sync" gorm:"autoUpdateTime"` // 最后同步时间
+	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 }
 
-type CloudFileLocal struct {//已淘汰
+type CloudFileLocal struct { //已淘汰
 	ID          uint      `json:"id" gorm:"primaryKey"`
 	UserID      uint      `json:"user_id" gorm:"not null;index"`       // 本地用户ID
 	CloudFileID uint      `json:"cloud_file_id" gorm:"not null;index"` // 关联的云文件ID
@@ -108,9 +107,9 @@ type CloudFileLocal struct {//已淘汰
 	UpdatedAt   time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 }
 
-type CloudFile struct {//已淘汰
+type CloudFile struct { //已淘汰
 	ID        uint `json:"id" gorm:"primaryKey"`
-	UserID    uint `json:"user_id" gorm:"not null"`		//上传者ID
+	UserID    uint `json:"user_id" gorm:"not null"` //上传者ID
 	ProjectId uint `json:"project_id" gorm:"not null"`
 	RootID    uint `json:"root_id" gorm:"not null"` // 根文件夹ID
 
@@ -122,7 +121,6 @@ type CloudFile struct {//已淘汰
 	UpdatedAt time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
 	DeletedAt gorm.DeletedAt `json:"-" gorm:"index"`
 }
-
 
 type MountRelation struct {
 	ID       uint `json:"id" gorm:"primaryKey"`
@@ -150,7 +148,6 @@ type WorkSet struct {
 	UpdatedAt       time.Time `json:"updated_at" gorm:"autoUpdateTime"`
 }
 
-
 type Tag struct {
 	ID        uint           `json:"id" gorm:"primaryKey"`
 	ProjectId uint           `json:"project_id" gorm:"not null;index"`
@@ -169,6 +166,17 @@ type TagRelation struct {
 	CreatedAt       time.Time      `json:"created_at" gorm:"autoCreateTime"`
 	UpdatedAt       time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
 	DeletedAt       gorm.DeletedAt `json:"-" gorm:"index"`
+}
+
+// CallRelation 虚拟文件夹调用关系
+type CallRelation struct {
+	ID             uint           `json:"id" gorm:"primaryKey"`
+	ProjectId      uint           `json:"project_id" gorm:"not null;index"`
+	CallerFolderID uint           `json:"caller_folder_id" gorm:"not null;index"` // 调用者文件夹ID
+	CalledFolderID uint           `json:"called_folder_id" gorm:"not null;index"` // 被调用者文件夹ID
+	CreatedAt      time.Time      `json:"created_at" gorm:"autoCreateTime"`
+	UpdatedAt      time.Time      `json:"updated_at" gorm:"autoUpdateTime"`
+	DeletedAt      gorm.DeletedAt `json:"-" gorm:"index"`
 }
 
 func (PostgresUser) TableName() string {
@@ -209,4 +217,8 @@ func (Tag) TableName() string {
 
 func (TagRelation) TableName() string {
 	return "tag_relations"
+}
+
+func (CallRelation) TableName() string {
+	return "call_relations"
 }

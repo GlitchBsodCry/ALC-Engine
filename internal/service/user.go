@@ -17,19 +17,17 @@ import (
 
 // UserService 用户服务层
 type UserService struct {
-	userRepo           repository.UserRepository
-	codeRepo           repository.CodeRepository
-	postgresUserRepo   *repository.PostgresUserRepository
-	virtualRootService *VirtualRootService
+	userRepo         repository.UserRepository
+	codeRepo         repository.CodeRepository
+	postgresUserRepo *repository.PostgresUserRepository
 }
 
 // NewUserService 创建用户服务实例
-func NewUserService(userRepo repository.UserRepository, codeRepo repository.CodeRepository, postgresUserRepo *repository.PostgresUserRepository, virtualRootService *VirtualRootService) *UserService {
+func NewUserService(userRepo repository.UserRepository, codeRepo repository.CodeRepository, postgresUserRepo *repository.PostgresUserRepository) *UserService {
 	return &UserService{
-		userRepo:           userRepo,
-		codeRepo:           codeRepo,
-		postgresUserRepo:   postgresUserRepo,
-		virtualRootService: virtualRootService,
+		userRepo:         userRepo,
+		codeRepo:         codeRepo,
+		postgresUserRepo: postgresUserRepo,
 	}
 }
 
@@ -81,14 +79,6 @@ func (s *UserService) Register(ctx context.Context, req model.RegisterRequest) (
 		if err := s.postgresUserRepo.Create(ctx, user.ID); err != nil {
 			logger.Error("创建PostgreSQL用户记录失败", zap.Uint("user_id", user.ID), zap.Error(err))
 			// PostgreSQL用户记录创建失败不影响用户注册
-		}
-	}
-
-	// 7. 为用户创建根目录
-	if s.virtualRootService != nil {
-		if err := s.virtualRootService.CreateUserVirtualRoot(ctx, user.ID); err != nil {
-			logger.Error("创建用户根目录失败", zap.Uint("user_id", user.ID), zap.Error(err))
-			// 根目录创建失败不影响用户注册
 		}
 	}
 

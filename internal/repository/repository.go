@@ -20,6 +20,7 @@ type Repositories struct {
 	CloudFileLocal  CloudFileLocalRepository
 	Tag             TagRepository
 	TagRelation     TagRelationRepository
+	CallRelation    CallRelationRepository
 	Test            *TestRepository
 }
 
@@ -39,6 +40,7 @@ func NewRepositories(mysqlDB *gorm.DB, postgresDB *gorm.DB, rdb *redis.Client) *
 		CloudFileLocal:  NewCloudFileLocalRepository(postgresDB),
 		Tag:             NewTagRepository(postgresDB),
 		TagRelation:     NewTagRelationRepository(postgresDB),
+		CallRelation:    NewCallRelationRepository(postgresDB),
 		Test:            NewTestRepository(postgresDB),
 	}
 }

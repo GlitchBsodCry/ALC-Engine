@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"mygo_bangforai/api/errors"
 	"mygo_bangforai/api/model"
 	"mygo_bangforai/internal/repository"
 )
@@ -252,4 +253,26 @@ func (s *VirtualFolderService) MoveVirtualFolder(ctx context.Context, userID uin
 
 	// 创建新的挂载关系
 	return s.MountRelationService.CreateMountRelation(ctx, userID, newParentID, newParentType, folderID, "folder", "mount")
+}
+
+// GetVirtualFolderByID 根据ID获取虚拟文件夹信息
+func (s *VirtualFolderService) GetVirtualFolderByID(ctx context.Context, userID uint, folderID uint) (*model.VirtualFolder, error) {
+	// 检查虚拟文件夹是否存在
+	folder, err := s.VirtualFolderRepo.GetVirtualFolderByID(ctx, folderID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 检查根目录是否存在
+	root, err := s.VirtualRootRepo.GetVirtualRootByID(ctx, folder.RootID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 检查用户是否有权限访问该文件夹
+	if !s.checkRootAccess(ctx, root, userID) {
+		return nil, errors.NewError(errors.PermissionDenied, "权限不足", "internal/service/virtual_folder.go/GetVirtualFolderByID")
+	}
+
+	return folder, nil
 }

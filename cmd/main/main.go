@@ -123,7 +123,7 @@ func main() {
 		repos.VirtualFolder,
 		repos.Project,
 	)
-	userService := service.NewUserService(repos.User, repos.Code, repos.PostgresUser, virtualRootService)
+	userService := service.NewUserService(repos.User, repos.Code, repos.PostgresUser)
 	control.InitUserService(userService)
 	control.InitVirtualFolderService(virtualFolderService)
 	control.InitMountRelationService(mountRelationService)
@@ -142,6 +142,11 @@ func main() {
 	projectService := service.NewProjectService(repos.Project, repos.PostgresProject, virtualRootService)
 	control.InitProjectService(projectService)
 	logger.Info("Project服务初始化完成")
+
+	// 初始化调用关系服务
+	callRelationService := service.NewCallRelationService(repos.CallRelation, repos.VirtualFolder)
+	control.InitCallRelationService(callRelationService)
+	logger.Info("调用关系服务初始化完成")
 
 	// 初始化权限中间件
 	middleware.InitProjectAuthMiddleware(projectService)
