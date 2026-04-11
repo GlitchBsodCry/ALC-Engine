@@ -6,6 +6,22 @@ import (
 	"gorm.io/gorm"
 )
 
+// 项目成员角色常量
+const (
+	RoleOwner  = "owner"
+	RoleAdmin  = "admin"
+	RoleMember = "member"
+	RoleViewer = "viewer"
+	RoleBan    = "ban"
+)
+
+// 项目状态常量
+const (
+	ProjectStatusActive   = "active"
+	ProjectStatusArchived = "archived"
+	ProjectStatusDeleted  = "deleted"
+)
+
 // =======================================数据库模型=============================================
 type Project struct {
 	ID      uint   `gorm:"primaryKey"`
@@ -39,13 +55,13 @@ type CreateProjectRequest struct {
 type AddProjectMemberRequest struct {
 	ProjectID uint   `json:"project_id" binding:"required"`
 	UserID    uint   `json:"user_id" binding:"required"`
-	Role      string `json:"role" binding:"required,oneof=admin member viewer"`
+	Role      string `json:"role" binding:"required,oneof=admin member viewer ban"`
 }
 
 type UpdateProjectMemberRequest struct {
 	ProjectID uint   `json:"project_id" binding:"required"`
 	MemberID  uint   `json:"member_id" binding:"required"`
-	Role      string `json:"role" binding:"required,oneof=admin member viewer"`
+	Role      string `json:"role" binding:"required,oneof=admin member viewer ban"`
 }
 
 // =======================================响应模型=============================================

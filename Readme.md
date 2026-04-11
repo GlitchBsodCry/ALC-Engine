@@ -13,13 +13,13 @@ ALC Engine (Ai Assistant Lite Cloud Engine) 是一个集成了AI智能对话与�
 
 - AI 对话引擎集成（多会话 + 流式输出）
 - AI 图像模型推理（ONNXRuntime 部署 + 推理加速）
-- 高并发后台（RabbitMQ 异步消息处理）
+- 正在实现中
 
 ### 虚拟文件夹系统 
 
 #### 文件空间
 
-用户与项目分别存在一个独立的文件空间，可以对虚拟文件夹进行存储
+用户与项目都有一个独立的根目录，可以对虚拟文件夹进行存储
 
 虚拟文件夹之间除了文件夹上的嵌套关系，还可以是调用关系
 
@@ -27,33 +27,30 @@ ALC Engine (Ai Assistant Lite Cloud Engine) 是一个集成了AI智能对话与�
 
 - 通过调用大宗虚拟文件夹，实现对一类文件资源的快速使用和关联
 
-![dazong](image/dazong.png)
+!\[dazong]\(image/dazong.png null)
 
 - 通过占位虚拟文件夹，代表逻辑上未开发的文件
 
-![placeholder](image/placeholder.png)
+!\[placeholder]\(image/placeholder.png null)
 
 - 通过调用实体虚拟文件夹，实现某类资源集合的多次重复使用
 
-![leg](image/leg.png)
+!\[leg]\(image/leg.png null)
 
 - 建议虚拟文件夹多表示一类概念，并整理子概念的关系
 
-![spider](image/spider.png)
+!\[spider]\(image/spider.png null)
 
-****
+***
 
 ### 多人协作
 
-通过文件的上传、更新等，实现多人的逻辑同步
+可以把文件挂载到某虚拟文件夹上
+通过虚拟文件夹的自带的逻辑性质代表此文件在开发中的逻辑性质
 
-![cloudfile](image/cloudfile.260407.png)
+通过文件的上传、更新、同步等，实现多人的逻辑同步
 
-
-
-
-
-
+!\[cloudfile]\(image/cloudfile.260407.png null)
 
 ## 🏗️ 技术架构
 

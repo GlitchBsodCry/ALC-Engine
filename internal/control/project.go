@@ -398,6 +398,25 @@ func RenameFile(c *gin.Context) {
 	})
 }
 
+// GetProjectEvents 获取项目实时事件（SSE）
+func GetProjectEvents(c *gin.Context) {
+	// 这是一个占位函数，实际实现需要集成SSE功能
+	// 目前返回空数据，表示功能待实现
+	errors.Success(c, gin.H{
+		"events": []interface{}{},
+		"message": "实时事件功能待实现",
+	})
+}
+
+// ApproveChange 批准变更请求
+func ApproveChange(c *gin.Context) {
+	// 这是一个占位函数，实际实现需要集成变更审批功能
+	// 目前返回成功消息，表示功能待实现
+	errors.Success(c, gin.H{
+		"message": "变更审批功能待实现",
+	})
+}
+
 // DeleteFile 删除文件（不删除真实文件）
 func DeleteFile(c *gin.Context) {
 	var req struct {

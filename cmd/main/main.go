@@ -9,6 +9,7 @@ import (
 	"mygo_bangforai/pkg/config"
 	"mygo_bangforai/pkg/interfacer"
 	"mygo_bangforai/pkg/logger"
+	"mygo_bangforai/pkg/middleware"
 	"mygo_bangforai/pkg/router"
 	"mygo_bangforai/pkg/utils"
 )
@@ -141,6 +142,10 @@ func main() {
 	projectService := service.NewProjectService(repos.Project, repos.PostgresProject, virtualRootService)
 	control.InitProjectService(projectService)
 	logger.Info("Project服务初始化完成")
+
+	// 初始化权限中间件
+	middleware.InitProjectAuthMiddleware(projectService)
+	logger.Info("权限中间件初始化完成")
 
 	// 初始化测试服务和控制器
 	testService := service.NewTestService(repos.Test)

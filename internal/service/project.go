@@ -170,3 +170,43 @@ func (s *ProjectService) UpdateProjectMemberRoleService(ctx context.Context, use
 
 	return nil
 }
+
+// GetUserProjectRole 获取用户在项目中的角色
+func (s *ProjectService) GetUserProjectRole(ctx context.Context, projectID, userID uint) (string, error) {
+	role, err := s.ProjectRepo.GetProjectMemberRole(ctx, projectID, userID)
+	if err != nil {
+		return "", errors.WrapError(err, errors.DatabaseError, "获取用户角色失败", "internal/service/project.go/GetUserProjectRole")
+	}
+	return role, nil
+}
+
+// CheckUserProjectRole 检查用户是否具有指定项目角色或更高角色
+func (s *ProjectService) CheckUserProjectRole(ctx context.Context, projectID, userID uint, requiredRole string) (bool, error) {
+	role, err := s.GetUserProjectRole(ctx, projectID, userID)
+	if err != nil {
+		return false, err
+	}
+
+	// 角色级别定义
+	roleLevels := map[string]int{
+		"owner":  4,
+		"admin":  3,
+		"member": 2,
+		"viewer": 1,
+	}
+
+	userLevel, userOk := roleLevels[role]
+	requiredLevel, requiredOk := roleLevels[requiredRole]
+
+	// 如果角色不存在于映射中，默认为最低级别
+	if !userOk {
+		userLevel = 0
+	}
+	if !requiredOk {
+		// 未知角色，无法验证
+		return false, errors.NewError(errors.InvalidParams, "无效的角色类型", "internal/service/project.go/CheckUserProjectRole")
+	}
+
+	// 用户角色级别 >= 所需角色级别
+	return userLevel >= requiredLevel, nil
+}
