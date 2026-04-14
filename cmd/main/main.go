@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"mygo_bangforai/api/model"
 	"mygo_bangforai/internal/control"
 	"mygo_bangforai/internal/rabbitmq"
@@ -58,6 +59,24 @@ func main() {
 		logger.Warnf("初始化RabbitMQ失败，将使用内存存储: %v", err)
 	} else {
 		logger.Info("RabbitMQ初始化完成")
+
+		// 初始化审批协调器队列
+		if err := service.InitApprovalCoordinatorQueue(); err != nil {
+			logger.Warnf("初始化审批协调器队列失败: %v", err)
+		} else {
+			logger.Info("审批协调器队列初始化完成")
+		}
+
+		// 启动RabbitMQ缓存更新消费者
+		redisCacheService := rabbitmq.NewRedisCacheService()
+		go func() {
+			ctx := context.Background()
+			if err := redisCacheService.StartCacheUpdateConsumer(ctx); err != nil {
+				logger.Errorf("启动缓存更新消费者失败: %v", err)
+			} else {
+				logger.Info("缓存更新消费者启动成功")
+			}
+		}()
 	}
 
 	// 初始化MinIO
@@ -85,7 +104,28 @@ func main() {
 		repos.VirtualRoot,
 		repos.Project,
 	)
-	virtualFolderService := service.NewVirtualFolderService(repos.VirtualFolder, repos.VirtualRoot, repos.Project, mountRelationService)
+
+	// 初始化缓存相关服务
+	cacheUpdateService := service.NewCacheUpdateService(
+		repos.VirtualFolder,
+		repos.MountRelation,
+		repos.CloudFile,
+		rabbitmq.GetRabbitMQ(),
+	)
+
+	redisCacheQueryService := service.NewRedisCacheQueryService(
+		repos.VirtualFolder,
+		repos.MountRelation,
+		cacheUpdateService,
+	)
+
+	virtualFolderService := service.NewVirtualFolderService(
+		repos.VirtualFolder,
+		repos.VirtualRoot,
+		repos.Project,
+		mountRelationService,
+		redisCacheQueryService,
+	)
 	fileService := service.NewFileService(
 		mountRelationService,
 		repos.RealFile,
@@ -117,6 +157,16 @@ func main() {
 	)
 	control.InitCloudFileService(cloudFileService)
 
+	// 初始化云文件上传审批服务
+	cloudFileApprovalService := service.NewCloudFileApprovalService(
+		repos.CloudFileApprovalRedis,
+		interfacer.GetLogger(),
+	)
+	control.InitCloudFileApprovalService(cloudFileApprovalService)
+
+	// 将审批服务注入到云文件服务
+	cloudFileService.SetApprovalService(cloudFileApprovalService)
+
 	tagService := service.NewTagService(
 		repos.Tag,
 		repos.TagRelation,
@@ -139,14 +189,57 @@ func main() {
 	control.InitChatService(chatService)
 	logger.Info("Chat服务初始化完成")
 
-	projectService := service.NewProjectService(repos.Project, repos.PostgresProject, virtualRootService)
+	projectService := service.NewProjectService(repos.Project, repos.PostgresProject, repos.ChangeRequest, virtualRootService)
 	control.InitProjectService(projectService)
 	logger.Info("Project服务初始化完成")
+
+	// 启动审批协调器
+	if config.GetRedisClient() != nil {
+		approvalCoordinator := service.NewApprovalCoordinator(repos.ChangeRequest, repos.ApprovalRedis)
+		go approvalCoordinator.Start(context.Background())
+		logger.Info("审批协调器启动成功")
+
+		// 初始化预存储队列
+		if err := service.InitPreStorageQueue(); err != nil {
+			logger.Warnf("初始化预存储队列失败: %v", err)
+		} else {
+			logger.Info("预存储队列初始化完成")
+
+			// 启动预存储协程
+			preStorageCoroutine := service.NewPreStorageCoroutine(repos.ChangeRequest, repos.ApprovalRedis)
+			go preStorageCoroutine.Start(context.Background())
+			logger.Info("预存储协程启动成功")
+
+			projectService.SetPreStorageCoroutine(preStorageCoroutine)
+			logger.Info("预存储协程已注入ProjectService")
+		}
+
+		// 初始化消费队列
+		if err := service.InitConsumerQueue(); err != nil {
+			logger.Warnf("初始化消费队列失败: %v", err)
+		} else {
+			logger.Info("消费队列初始化完成")
+
+			// 启动消费协程
+			approvedBatch := service.NewApprovedBatchService(
+				repos.ApprovalPG,
+				repos.ApprovalRedis,
+			)
+			consumerCoordinator := service.NewConsumerCoordinator(repos.ApprovalRedis, approvedBatch)
+			go consumerCoordinator.Start(context.Background())
+			logger.Info("消费协程启动成功")
+		}
+	}
 
 	// 初始化调用关系服务
 	callRelationService := service.NewCallRelationService(repos.CallRelation, repos.VirtualFolder)
 	control.InitCallRelationService(callRelationService)
 	logger.Info("调用关系服务初始化完成")
+
+	// 初始化缓存服务到控制器
+	control.InitCacheUpdateService(cacheUpdateService)
+	control.InitRedisCacheQueryService(redisCacheQueryService)
+	logger.Info("缓存服务初始化完成")
 
 	// 初始化权限中间件
 	middleware.InitProjectAuthMiddleware(projectService)

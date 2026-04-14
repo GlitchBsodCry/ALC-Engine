@@ -8,7 +8,7 @@ import (
 )
 
 type VirtualFolderRepository interface {
-	CreateVirtualFolder(ctx context.Context, folder *model.VirtualFolder) error
+	CreateVirtualFolder(ctx context.Context, folder *model.VirtualFolder) (uint, error)
 	GetVirtualFolderByID(ctx context.Context, folderID uint) (*model.VirtualFolder, error)
 	GetVirtualFoldersByIDs(ctx context.Context, folderIDs []uint) ([]model.VirtualFolder, error)
 	GetVirtualFoldersByRootID(ctx context.Context, rootID uint) ([]model.VirtualFolder, error)
@@ -27,8 +27,12 @@ func NewVirtualFolderRepository(db *gorm.DB) VirtualFolderRepository {
 	}
 }
 
-func (r *virtualFolderRepository) CreateVirtualFolder(ctx context.Context, folder *model.VirtualFolder) error {
-	return r.db.WithContext(ctx).Create(folder).Error
+func (r *virtualFolderRepository) CreateVirtualFolder(ctx context.Context, folder *model.VirtualFolder) (uint, error) {
+	err := r.db.WithContext(ctx).Create(folder).Error
+	if err != nil {
+		return 0, err
+	}
+	return folder.ID, nil
 }
 
 func (r *virtualFolderRepository) GetVirtualFolderByID(ctx context.Context, folderID uint) (*model.VirtualFolder, error) {

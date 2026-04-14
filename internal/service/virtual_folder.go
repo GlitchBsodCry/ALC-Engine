@@ -8,10 +8,11 @@ import (
 )
 
 type VirtualFolderService struct {
-	VirtualFolderRepo    repository.VirtualFolderRepository
-	VirtualRootRepo      repository.VirtualRootRepository
-	ProjectRepo          repository.ProjectRepository
-	MountRelationService *MountRelationService
+	VirtualFolderRepo      repository.VirtualFolderRepository
+	VirtualRootRepo        repository.VirtualRootRepository
+	ProjectRepo            repository.ProjectRepository
+	MountRelationService   *MountRelationService
+	RedisCacheQueryService *RedisCacheQueryService
 }
 
 func NewVirtualFolderService(
@@ -19,25 +20,27 @@ func NewVirtualFolderService(
 	virtualRootRepo repository.VirtualRootRepository,
 	projectRepo repository.ProjectRepository,
 	mountRelationService *MountRelationService,
+	redisCacheQueryService *RedisCacheQueryService,
 ) *VirtualFolderService {
 	return &VirtualFolderService{
-		VirtualFolderRepo:    virtualFolderRepo,
-		VirtualRootRepo:      virtualRootRepo,
-		ProjectRepo:          projectRepo,
-		MountRelationService: mountRelationService,
+		VirtualFolderRepo:      virtualFolderRepo,
+		VirtualRootRepo:        virtualRootRepo,
+		ProjectRepo:            projectRepo,
+		MountRelationService:   mountRelationService,
+		RedisCacheQueryService: redisCacheQueryService,
 	}
 }
 
-func (s *VirtualFolderService) CreateVirtualFolder(ctx context.Context, userID uint, rootID uint, name string, parentID *uint) error {
+func (s *VirtualFolderService) CreateVirtualFolder(ctx context.Context, userID uint, rootID uint, name string, parentID *uint) (uint, error) {
 	// 检查根目录是否存在
 	root, err := s.VirtualRootRepo.GetVirtualRootByID(ctx, rootID)
 	if err != nil {
-		return err
+		return 0,err
 	}
 
 	// 检查用户是否有权限访问根目录
 	if !s.checkRootAccess(ctx, root, userID) {
-		return nil // 权限不足
+		return 0, nil // 权限不足
 	}
 
 	// 创建虚拟文件夹
@@ -53,8 +56,9 @@ func (s *VirtualFolderService) CreateVirtualFolder(ctx context.Context, userID u
 	}
 
 	// 保存虚拟文件夹
-	if err := s.VirtualFolderRepo.CreateVirtualFolder(ctx, folder); err != nil {
-		return err
+	folderID, err := s.VirtualFolderRepo.CreateVirtualFolder(ctx, folder)
+	if err != nil {
+		return 0, err
 	}
 
 	// 如果有父文件夹，创建挂载关系
@@ -62,24 +66,24 @@ func (s *VirtualFolderService) CreateVirtualFolder(ctx context.Context, userID u
 		// 检查父文件夹是否存在
 		parentFolder, err := s.VirtualFolderRepo.GetVirtualFolderByID(ctx, *parentID)
 		if err != nil {
-			return err
+			return 0, err
 		}
 
 		// 检查父文件夹是否属于同一个根目录
 		if parentFolder.RootID != rootID {
-			return nil // 父文件夹不属于同一个根目录
+			return 0,nil // 父文件夹不属于同一个根目录
 		}
 
 		// 创建挂载关系
 		if s.MountRelationService != nil {
-			err = s.MountRelationService.CreateMountRelation(ctx, userID, *parentID, "folder", folder.ID, "folder", "mount")
+			err = s.MountRelationService.CreateMountRelation(ctx, userID, *parentID, "folder", folderID, "folder", "mount")
 			if err != nil {
-				return err
+				return 0, err
 			}
 		}
 	}
 
-	return nil
+	return folderID, nil
 }
 
 func (s *VirtualFolderService) GetVirtualFoldersByRootID(ctx context.Context, userID uint, rootID uint) ([]model.VirtualFolder, error) {
@@ -127,10 +131,11 @@ func (s *VirtualFolderService) checkRootAccess(ctx context.Context, root *model.
 	}
 
 	// 检查根目录类型
-	if root.Type == "user" {
+	switch root.Type {
+	case "user":
 		// 用户根目录只能由用户自己访问
 		return root.UserID != nil && *root.UserID == userID
-	} else if root.Type == "project" {
+	case "project":
 		// 项目根目录需要检查用户是否为项目成员
 		if root.ProjectId == nil {
 			return false
@@ -214,7 +219,8 @@ func (s *VirtualFolderService) MoveVirtualFolder(ctx context.Context, userID uin
 	}
 
 	// 检查新父文件夹是否存在且用户有权限访问
-	if newParentType == "folder" {
+	switch newParentType {
+	case "folder":
 		newParentFolder, err := s.VirtualFolderRepo.GetVirtualFolderByID(ctx, newParentID)
 		if err != nil {
 			return err
@@ -224,7 +230,7 @@ func (s *VirtualFolderService) MoveVirtualFolder(ctx context.Context, userID uin
 		if newParentFolder.RootID != folder.RootID {
 			return nil // 新父文件夹不属于同一个根目录
 		}
-	} else if newParentType == "root" {
+	case "root":
 		// 检查根目录是否存在
 		_, err := s.VirtualRootRepo.GetVirtualRootByID(ctx, newParentID)
 		if err != nil {
@@ -257,7 +263,19 @@ func (s *VirtualFolderService) MoveVirtualFolder(ctx context.Context, userID uin
 
 // GetVirtualFolderByID 根据ID获取虚拟文件夹信息
 func (s *VirtualFolderService) GetVirtualFolderByID(ctx context.Context, userID uint, folderID uint) (*model.VirtualFolder, error) {
-	// 检查虚拟文件夹是否存在
+	// 如果Redis缓存查询服务可用，优先从缓存查询
+	if s.RedisCacheQueryService != nil {
+		cachedFolder, _, err := s.RedisCacheQueryService.GetVirtualFolderWithCache(ctx, folderID)
+		if err == nil && cachedFolder != nil {
+			// 检查用户权限
+			root, err := s.VirtualRootRepo.GetVirtualRootByID(ctx, cachedFolder.RootID)
+			if err == nil && s.checkRootAccess(ctx, root, userID) {
+				return cachedFolder, nil
+			}
+		}
+	}
+
+	// 缓存未命中或权限检查失败，从数据库查询
 	folder, err := s.VirtualFolderRepo.GetVirtualFolderByID(ctx, folderID)
 	if err != nil {
 		return nil, err

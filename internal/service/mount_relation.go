@@ -30,12 +30,13 @@ func NewMountRelationService(
 // CreateMountRelation 创建挂载关系
 func (s *MountRelationService) CreateMountRelation(ctx context.Context, userID uint, parentID uint, parentType string, childID uint, childType string, relationType string) error {
 	// 检查父节点是否存在
-	if parentType == "folder" {
+	switch parentType {
+case "folder":
 		_, err := s.VirtualFolderRepo.GetVirtualFolderByID(ctx, parentID)
 		if err != nil {
 			return err
 		}
-	} else if parentType == "root" {
+	case "root":
 		_, err := s.VirtualRootRepo.GetVirtualRootByID(ctx, parentID)
 		if err != nil {
 			return err
@@ -43,7 +44,8 @@ func (s *MountRelationService) CreateMountRelation(ctx context.Context, userID u
 	}
 
 	// 检查用户是否有权限
-	if parentType == "folder" {
+	switch parentType {
+case "folder":
 		folder, err := s.VirtualFolderRepo.GetVirtualFolderByID(ctx, parentID)
 		if err != nil {
 			return err
@@ -55,7 +57,7 @@ func (s *MountRelationService) CreateMountRelation(ctx context.Context, userID u
 		if !s.checkRootAccess(ctx, root, userID) {
 			return nil // 权限不足
 		}
-	} else if parentType == "root" {
+	case "root":
 		root, err := s.VirtualRootRepo.GetVirtualRootByID(ctx, parentID)
 		if err != nil {
 			return err
@@ -88,12 +90,13 @@ func (s *MountRelationService) CreateMountRelation(ctx context.Context, userID u
 // GetMountRelationsByParentID 根据父节点ID和类型获取挂载关系
 func (s *MountRelationService) GetMountRelationsByParentID(ctx context.Context, userID uint, parentID uint, parentType string) ([]model.MountRelation, error) {
 	// 检查父节点是否存在
-	if parentType == "folder" {
+	switch parentType {
+case "folder":
 		_, err := s.VirtualFolderRepo.GetVirtualFolderByID(ctx, parentID)
 		if err != nil {
 			return nil, err
 		}
-	} else if parentType == "root" {
+	case "root":
 		_, err := s.VirtualRootRepo.GetVirtualRootByID(ctx, parentID)
 		if err != nil {
 			return nil, err
@@ -101,7 +104,8 @@ func (s *MountRelationService) GetMountRelationsByParentID(ctx context.Context, 
 	}
 
 	// 检查用户是否有权限
-	if parentType == "folder" {
+	switch parentType {
+case "folder":
 		folder, err := s.VirtualFolderRepo.GetVirtualFolderByID(ctx, parentID)
 		if err != nil {
 			return nil, err
@@ -113,7 +117,7 @@ func (s *MountRelationService) GetMountRelationsByParentID(ctx context.Context, 
 		if !s.checkRootAccess(ctx, root, userID) {
 			return nil, nil // 权限不足
 		}
-	} else if parentType == "root" {
+	case "root":
 		root, err := s.VirtualRootRepo.GetVirtualRootByID(ctx, parentID)
 		if err != nil {
 			return nil, err
@@ -152,12 +156,13 @@ func (s *MountRelationService) GetMountRelationsByChildID(ctx context.Context, u
 // UpdateMountRelation 更新挂载关系
 func (s *MountRelationService) UpdateMountRelation(ctx context.Context, userID uint, relation *model.MountRelation) error {
 	// 检查父节点是否存在
-	if relation.ParentType == "folder" {
+	switch relation.ParentType {
+case "folder":
 		_, err := s.VirtualFolderRepo.GetVirtualFolderByID(ctx, relation.ParentID)
 		if err != nil {
 			return err
 		}
-	} else if relation.ParentType == "root" {
+	case "root":
 		_, err := s.VirtualRootRepo.GetVirtualRootByID(ctx, relation.ParentID)
 		if err != nil {
 			return err
@@ -165,7 +170,8 @@ func (s *MountRelationService) UpdateMountRelation(ctx context.Context, userID u
 	}
 
 	// 检查用户是否有权限
-	if relation.ParentType == "folder" {
+	switch relation.ParentType {
+case "folder":
 		folder, err := s.VirtualFolderRepo.GetVirtualFolderByID(ctx, relation.ParentID)
 		if err != nil {
 			return err
@@ -177,7 +183,7 @@ func (s *MountRelationService) UpdateMountRelation(ctx context.Context, userID u
 		if !s.checkRootAccess(ctx, root, userID) {
 			return nil // 权限不足
 		}
-	} else if relation.ParentType == "root" {
+	case "root":
 		root, err := s.VirtualRootRepo.GetVirtualRootByID(ctx, relation.ParentID)
 		if err != nil {
 			return err
@@ -234,7 +240,8 @@ func (s *MountRelationService) DeleteMountRelation(ctx context.Context, userID u
 	}
 
 	// 检查用户是否有权限
-	if targetRelation.ParentType == "folder" {
+	switch targetRelation.ParentType {
+case "folder":
 		folder, err := s.VirtualFolderRepo.GetVirtualFolderByID(ctx, targetRelation.ParentID)
 		if err != nil {
 			return err
@@ -246,7 +253,7 @@ func (s *MountRelationService) DeleteMountRelation(ctx context.Context, userID u
 		if !s.checkRootAccess(ctx, root, userID) {
 			return nil // 权限不足
 		}
-	} else if targetRelation.ParentType == "root" {
+	case "root":
 		root, err := s.VirtualRootRepo.GetVirtualRootByID(ctx, targetRelation.ParentID)
 		if err != nil {
 			return err
@@ -268,10 +275,11 @@ func (s *MountRelationService) checkRootAccess(ctx context.Context, root *model.
 	}
 
 	// 检查根目录类型
-	if root.Type == "user" {
+	switch root.Type {
+case "user":
 		// 用户根目录只能由用户自己访问
 		return root.UserID != nil && *root.UserID == userID
-	} else if root.Type == "project" {
+	case "project":
 		// 项目根目录需要检查用户是否为项目成员
 		if root.ProjectId == nil {
 			return false

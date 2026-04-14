@@ -91,10 +91,11 @@ func (s *VirtualRootService) CheckRootAccess(ctx context.Context, rootID, userID
 	}
 
 	// 检查根目录类型
-	if root.Type == "user" {
+	switch root.Type {
+case "user":
 		// 用户根目录只能由用户自己访问
 		return root.UserID != nil && *root.UserID == userID, nil
-	} else if root.Type == "project" {
+	case "project":
 		// 项目根目录需要检查用户是否为项目成员
 		if s.ProjectRepo != nil {
 			if root.ProjectId == nil {

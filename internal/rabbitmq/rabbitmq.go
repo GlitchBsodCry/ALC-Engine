@@ -57,7 +57,7 @@ func InitRabbitMQ() error {
 		conn:     conn,
 		channel:  channel,
 		Exchange: "",
-		Key:      "chat_messages",
+		Key:      "cache_updates",
 	}
 
 	_, err = instance.channel.QueueDeclare(
@@ -98,6 +98,11 @@ func (r *RabbitMQ) Publish(message []byte) error {
 			Body:        message,
 		},
 	)
+}
+
+// GetChannel 获取 channel（导出方法供外部使用）
+func (r *RabbitMQ) GetChannel() *amqp.Channel {
+	return r.channel
 }
 
 func (r *RabbitMQ) Consume(ctx context.Context, handle func(msg *amqp.Delivery) error) {

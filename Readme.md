@@ -19,7 +19,7 @@ ALC Engine (Ai Assistant Lite Cloud Engine) 是一个集成了AI智能对话与�
 
 #### 文件空间
 
-用户与项目都有一个独立的根目录，可以对虚拟文件夹进行存储
+每个项目都有一个独立的根目录，可以对虚拟文件夹进行存储
 
 虚拟文件夹之间除了文件夹上的嵌套关系，还可以是调用关系
 
@@ -44,6 +44,18 @@ ALC Engine (Ai Assistant Lite Cloud Engine) 是一个集成了AI智能对话与�
 ***
 
 ### 多人协作
+
+#### 项目内的权限内容
+
+对于一个项目，存在owner、admin、member、viewer、ban从高到低五种权限类型
+
+其中，member和admin要在本地进行虚拟文件夹的编辑，进行一次性的提交，再经过其他admin的批准后真正编辑到项目里。
+
+对于云文件的上传也同样。
+
+![morepeople1](image/morepeople1.png)
+
+
 
 可以把文件挂载到某虚拟文件夹上
 通过虚拟文件夹的自带的逻辑性质代表此文件在开发中的逻辑性质
@@ -135,6 +147,20 @@ postgresql:
 - `GET /virtual/folder/root/:id` - 获取根目录文件夹
 - `GET /virtual/folder/parent/:id` - 获取子文件夹
 
+### 变更管理
+
+- `POST /changes` - 提交批量变更申请
+- `GET /changes/pending` - 获取待审批变更列表
+- `PUT /changes/approve/:id` - 批准变更申请
+- `PUT /changes/reject/:id` - 拒绝变更申请
+
+### 项目成员管理
+
+- `POST /project/:id/member` - 添加项目成员
+- `PUT /project/:id/member/:userid` - 更新成员权限
+- `DELETE /project/:id/member/:userid` - 移除项目成员
+- `GET /project/:id/members` - 获取项目成员列表
+
 ## 🔧 开发指南
 
 ### 项目结构
@@ -145,14 +171,19 @@ ALC Engine/
 │   ├── errors/            # 错误定义
 │   └── model/             # 数据模型
 ├── cmd/main/              # 入口点
+├── image/                 # 图片资源
 ├── internal/              # 内部包
 │   ├── ai/               # AI模块 (核心)
 │   ├── control/          # 控制器层
+│   ├── rabbitmq/         # RabbitMQ消息队列
 │   ├── repository/       # 数据访问层
 │   └── service/          # 业务逻辑层
 ├── pkg/                   # 公共包
 │   ├── config/           # 配置管理
+│   ├── interfacer/       # 接口定义
+│   ├── logger/           # 日志系统
 │   ├── middleware/       # 中间件
+│   ├── minio/            # MinIO对象存储
 │   ├── router/           # 路由定义
 │   └── utils/            # 工具函数
 └── config.yaml           # 配置文件
@@ -173,20 +204,20 @@ ALC Engine/
 
 ## 📊 版本说明
 
-### v1.0.0 (当前版本)
+### v2.0.0 (当前版本)
 
+- ✅ 权限控制系统
+- ✅ 多人协作优化
+- ✅ 变更审批流程
 - ✅ AI聊天系统完整实现
 - ✅ 虚拟文件夹核心功能
 - ✅ 云文件存储集成
 - ✅ 项目管理基础框架
-- ✅ 标签系统基础功能
-- ⚠️ 用户认证系统
 
 ### 后续规划
 
-- 完整的权限控制系统
-- 更加好用的实时协作功能
-- 更丰富的AI工具集成
+- 更丰富的AI工具集成（V3）
+- 增强项目实时性（V4）
 
 <br />
 

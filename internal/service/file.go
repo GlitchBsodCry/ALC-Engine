@@ -140,7 +140,8 @@ func (s *FileService) DownloadCloudFileToLocal(ctx context.Context, userID uint,
 // RenameFile 修改文件名
 func (s *FileService) RenameFile(ctx context.Context, userID uint, fileID uint, fileType string, newName string) error {
 	// 根据文件类型处理
-	if fileType == "cloud" {
+	switch fileType {
+	case "cloud":
 		// 检查云文件是否存在
 		cloudFile, err := s.CloudFileRepo.GetCloudFileByID(ctx, fileID)
 		if err != nil {
@@ -161,7 +162,7 @@ func (s *FileService) RenameFile(ctx context.Context, userID uint, fileID uint, 
 		// 更新文件名
 		cloudFile.Name = newName
 		return s.CloudFileRepo.UpdateCloudFile(ctx, cloudFile)
-	} else if fileType == "real" {
+	case "real":
 		// 检查本地文件是否存在
 		realFile, err := s.RealFileRepo.GetRealFileByID(ctx, fileID)
 		if err != nil {
@@ -190,7 +191,8 @@ func (s *FileService) RenameFile(ctx context.Context, userID uint, fileID uint, 
 // DeleteFile 删除文件（不删除真实文件）
 func (s *FileService) DeleteFile(ctx context.Context, userID uint, fileID uint, fileType string) error {
 	// 根据文件类型处理
-	if fileType == "cloud" {
+	switch fileType {
+	case "cloud":
 		// 检查云文件是否存在
 		cloudFile, err := s.CloudFileRepo.GetCloudFileByID(ctx, fileID)
 		if err != nil {
@@ -210,7 +212,7 @@ func (s *FileService) DeleteFile(ctx context.Context, userID uint, fileID uint, 
 
 		// 删除云文件
 		return s.CloudFileRepo.DeleteCloudFile(ctx, fileID)
-	} else if fileType == "real" {
+	case "real":
 		// 检查本地文件是否存在
 		realFile, err := s.RealFileRepo.GetRealFileByID(ctx, fileID)
 		if err != nil {
@@ -239,13 +241,14 @@ func (s *FileService) DeleteFile(ctx context.Context, userID uint, fileID uint, 
 func (s *FileService) MoveFile(ctx context.Context, userID uint, fileID uint, fileType string, newParentID uint, newParentType string) error {
 	// 检查文件是否存在
 	var rootID uint
-	if fileType == "cloud" {
+	switch fileType {
+case "cloud":
 		cloudFile, err := s.CloudFileRepo.GetCloudFileByID(ctx, fileID)
 		if err != nil {
 			return err
 		}
 		rootID = cloudFile.RootID
-	} else if fileType == "real" {
+	case "real":
 		realFile, err := s.RealFileRepo.GetRealFileByID(ctx, fileID)
 		if err != nil {
 			return err
@@ -293,7 +296,8 @@ func (s *FileService) MoveFile(ctx context.Context, userID uint, fileID uint, fi
 func (s *FileService) CopyFile(ctx context.Context, userID uint, fileID uint, fileType string, newParentID uint, newParentType string, newName string) error {
 	// 检查文件是否存在
 	var rootID uint
-	if fileType == "cloud" {
+	switch fileType {
+case "cloud":
 		cloudFile, err := s.CloudFileRepo.GetCloudFileByID(ctx, fileID)
 		if err != nil {
 			return err
@@ -332,7 +336,7 @@ func (s *FileService) CopyFile(ctx context.Context, userID uint, fileID uint, fi
 
 		// 创建新的挂载关系
 		return s.MountRelationService.CreateMountRelation(ctx, userID, newParentID, newParentType, newCloudFile.ID, fileType, "mount")
-	} else if fileType == "real" {
+	case "real":
 		realFile, err := s.RealFileRepo.GetRealFileByID(ctx, fileID)
 		if err != nil {
 			return err
@@ -403,12 +407,13 @@ func (s *FileService) GetFilesByFolderID(ctx context.Context, userID uint, folde
 	// 收集文件
 	var files []interface{}
 	for _, relation := range relations {
-		if relation.ChildType == "cloud" {
+		switch relation.ChildType {
+case "cloud":
 			cloudFile, err := s.CloudFileRepo.GetCloudFileByID(ctx, relation.ChildID)
 			if err == nil {
 				files = append(files, cloudFile)
 			}
-		} else if relation.ChildType == "real" {
+		case "real":
 			realFile, err := s.RealFileRepo.GetRealFileByID(ctx, relation.ChildID)
 			if err == nil {
 				files = append(files, realFile)
@@ -450,10 +455,11 @@ func (s *FileService) checkRootAccess(ctx context.Context, root *model.VirtualRo
 	}
 
 	// 检查根目录类型
-	if root.Type == "user" {
+	switch root.Type {
+	case "user":
 		// 用户根目录只能由用户自己访问
 		return root.UserID != nil && *root.UserID == userID
-	} else if root.Type == "project" {
+	case "project":
 		// 项目根目录需要检查用户是否为项目成员
 		if root.ProjectId == nil {
 			return false

@@ -1,12 +1,16 @@
 package control
 
 import (
+	"encoding/json"
+	"fmt"
 	"mygo_bangforai/api/errors"
 	"mygo_bangforai/api/model"
+	"mygo_bangforai/internal/rabbitmq"
 	"mygo_bangforai/internal/service"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
+	"github.com/streadway/amqp"
 	"go.uber.org/zap"
 )
 
@@ -16,6 +20,8 @@ var FileService *service.FileService
 var MountRelationService *service.MountRelationService
 var TagService *service.TagService
 var CallRelationService *service.CallRelationService
+var CacheUpdateService *service.CacheUpdateService
+var RedisCacheQueryService *service.RedisCacheQueryService
 
 func InitProjectService(svc *service.ProjectService) {
 	ProjectService = svc
@@ -39,6 +45,14 @@ func InitTagService(svc *service.TagService) {
 
 func InitCallRelationService(svc *service.CallRelationService) {
 	CallRelationService = svc
+}
+
+func InitCacheUpdateService(svc *service.CacheUpdateService) {
+	CacheUpdateService = svc
+}
+
+func InitRedisCacheQueryService(svc *service.RedisCacheQueryService) {
+	RedisCacheQueryService = svc
 }
 
 func CreateProject(c *gin.Context) {
@@ -163,14 +177,22 @@ func CreateVirtualFolder(c *gin.Context) {
 	userID := c.GetUint("user_id")
 
 	ctx := c.Request.Context()
-	err := VirtualFolderService.CreateVirtualFolder(ctx, userID, req.RootID, req.Name, req.ParentID)
+	folderID, err := VirtualFolderService.CreateVirtualFolder(ctx, userID, req.RootID, req.Name, req.ParentID)
 	if err != nil {
 		errors.Error(c, errors.InternalError, err)
 		return
 	}
 
+	// 发送缓存更新消息
+	if CacheUpdateService != nil && folderID != 0 {
+		if err := CacheUpdateService.SendCacheUpdateByVirtualFolderID(ctx, folderID, model.UpdateReasonCreate); err != nil {
+			logger.Warn("发送缓存更新消息失败", zap.Uint("folderID", folderID), zap.Error(err))
+		}
+	}
+
 	errors.Success(c, gin.H{
-		"message": "虚拟文件夹创建成功",
+		"message":   "虚拟文件夹创建成功",
+		"folder_id": folderID,
 	})
 }
 
@@ -242,6 +264,13 @@ func UpdateVirtualFolder(c *gin.Context) {
 		return
 	}
 
+	// 发送缓存更新消息
+	if CacheUpdateService != nil {
+		if err := CacheUpdateService.SendCacheUpdateByVirtualFolderID(ctx, req.FolderID, model.UpdateReasonModify); err != nil {
+			logger.Warn("发送缓存更新消息失败", zap.Uint("folderID", req.FolderID), zap.Error(err))
+		}
+	}
+
 	errors.Success(c, gin.H{
 		"message": "虚拟文件夹修改成功",
 	})
@@ -263,6 +292,13 @@ func DeleteVirtualFolder(c *gin.Context) {
 	if err != nil {
 		errors.Error(c, errors.InternalError, err)
 		return
+	}
+
+	// 发送缓存更新消息
+	if CacheUpdateService != nil {
+		if err := CacheUpdateService.SendCacheUpdateByVirtualFolderID(ctx, uint(folderID), model.UpdateReasonDelete); err != nil {
+			logger.Warn("发送缓存更新消息失败", zap.Uint("folderID", uint(folderID)), zap.Error(err))
+		}
 	}
 
 	errors.Success(c, gin.H{
@@ -291,6 +327,13 @@ func MoveVirtualFolder(c *gin.Context) {
 		return
 	}
 
+	// 发送缓存更新消息
+	if CacheUpdateService != nil {
+		if err := CacheUpdateService.SendCacheUpdateByVirtualFolderID(ctx, req.FolderID, model.UpdateReasonModify); err != nil {
+			logger.Warn("发送缓存更新消息失败", zap.Uint("folderID", req.FolderID), zap.Error(err))
+		}
+	}
+
 	errors.Success(c, gin.H{
 		"message": "虚拟文件夹移动成功",
 	})
@@ -316,6 +359,13 @@ func MountFile(c *gin.Context) {
 	if err != nil {
 		errors.Error(c, errors.InternalError, err)
 		return
+	}
+
+	// 挂载文件只影响挂载的虚拟文件夹
+	if CacheUpdateService != nil && req.ParentType == "folder" {
+		if err := CacheUpdateService.SendCacheUpdateByVirtualFolderID(ctx, req.ParentID, model.UpdateReasonModify); err != nil {
+			logger.Warn("发送缓存更新消息失败", zap.Uint("folderID", req.ParentID), zap.Error(err))
+		}
 	}
 
 	errors.Success(c, gin.H{
@@ -397,6 +447,13 @@ func RenameFile(c *gin.Context) {
 		return
 	}
 
+	// 重命名文件使用SendCacheUpdateByFileID
+	if CacheUpdateService != nil {
+		if err := CacheUpdateService.SendCacheUpdateByFileID(ctx, req.FileID, req.FileType, model.UpdateReasonModify); err != nil {
+			logger.Warn("发送缓存更新消息失败", zap.Uint("fileID", req.FileID), zap.Error(err))
+		}
+	}
+
 	errors.Success(c, gin.H{
 		"message": "文件名修改成功",
 	})
@@ -412,12 +469,86 @@ func GetProjectEvents(c *gin.Context) {
 	})
 }
 
+// GetPendingChanges 获取项目待审批的变更请求
+func GetPendingChanges(c *gin.Context) {
+	projectIDStr := c.Param("project_id")
+	projectID, err := strconv.ParseUint(projectIDStr, 10, 32)
+	if err != nil || projectID == 0 {
+		errors.ParamError(c, "项目ID不能为空或无效")
+		return
+	}
+
+	ctx := c.Request.Context()
+	pendingChanges, err := ProjectService.GetPendingChangesByProjectID(ctx, uint(projectID))
+	if err != nil {
+		errors.Error(c, errors.InternalError, err)
+		return
+	}
+
+	errors.Success(c, gin.H{
+		"changes": pendingChanges,
+		"total":   len(pendingChanges),
+	})
+}
+
 // ApproveChange 批准变更请求
 func ApproveChange(c *gin.Context) {
-	// 这是一个占位函数，实际实现需要集成变更审批功能
-	// 目前返回成功消息，表示功能待实现
+	var req struct {
+		UserID   uint `json:"user_id" binding:"required"`
+		Approved bool `json:"approved" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errors.ParamError(c, err.Error())
+		return
+	}
+
+	projectIDStr := c.Param("project_id")
+	projectID, err := strconv.ParseUint(projectIDStr, 10, 32)
+	if err != nil || projectID == 0 {
+		errors.ParamError(c, "项目ID无效")
+		return
+	}
+
+	approvalMsg := model.ApprovalMessage{
+		UserID:    req.UserID,
+		ProjectID: uint(projectID),
+		Approved:  req.Approved,
+	}
+
+	msgData, err := json.Marshal(approvalMsg)
+	if err != nil {
+		errors.Error(c, errors.InternalError, fmt.Errorf("序列化审批消息失败: %w", err))
+		return
+	}
+
+	mq := rabbitmq.GetRabbitMQ()
+	if mq == nil {
+		errors.Error(c, errors.InternalError, fmt.Errorf("RabbitMQ 未初始化"))
+		return
+	}
+
+	err = mq.GetChannel().Publish(
+		"",
+		"approval_result_queue",
+		false,
+		false,
+		amqp.Publishing{
+			ContentType: "application/json",
+			Body:        msgData,
+		},
+	)
+	if err != nil {
+		errors.Error(c, errors.InternalError, fmt.Errorf("发送审批消息失败: %w", err))
+		return
+	}
+
+	logger.Info("审批消息已发送到队列",
+		zap.Uint("user_id", req.UserID),
+		zap.Uint("project_id", uint(projectID)),
+		zap.Bool("approved", req.Approved))
+
 	errors.Success(c, gin.H{
-		"message": "变更审批功能待实现",
+		"message": "审批请求已发送，等待处理",
 	})
 }
 
@@ -435,15 +566,88 @@ func DeleteFile(c *gin.Context) {
 	userID := c.GetUint("user_id")
 
 	ctx := c.Request.Context()
+
+	// 注销文件前预查询相关虚拟文件夹ID
+	var folderIDs []uint
+	if CacheUpdateService != nil {
+		var err error
+		folderIDs, err = CacheUpdateService.GetFolderIDsByFileID(ctx, req.FileID)
+		if err != nil {
+			logger.Warn("预查询文件关联的虚拟文件夹失败", zap.Uint("fileID", req.FileID), zap.Error(err))
+		}
+	}
+
+	// 执行文件注销
 	err := FileService.DeleteFile(ctx, userID, req.FileID, req.FileType)
 	if err != nil {
 		errors.Error(c, errors.InternalError, err)
 		return
 	}
 
+	// 注销后根据预查询的文件夹ID更新缓存
+	if CacheUpdateService != nil && len(folderIDs) > 0 {
+		if err := CacheUpdateService.UpdateFolderCachesByIDs(ctx, folderIDs, model.UpdateReasonModify); err != nil {
+			logger.Warn("发送缓存更新消息失败", zap.Uint("fileID", req.FileID), zap.Error(err))
+		}
+	}
+
 	errors.Success(c, gin.H{
 		"message": "文件删除成功",
 	})
+}
+
+// CheckProjectVersion 检查项目版本是否一致
+func CheckProjectVersion(c *gin.Context) {
+	projectIDStr := c.Param("project_id")
+	projectID, err := strconv.ParseUint(projectIDStr, 10, 32)
+	if err != nil || projectID == 0 {
+		errors.ParamError(c, "项目ID不能为空或无效")
+		return
+	}
+
+	// 获取客户端版本
+	clientVersion := c.Query("version")
+	if clientVersion == "" {
+		errors.ParamError(c, "版本号不能为空")
+		return
+	}
+
+	ctx := c.Request.Context()
+
+	// 检查项目版本
+	if RedisCacheQueryService == nil {
+		errors.Error(c, errors.InternalError, fmt.Errorf("缓存服务未初始化"))
+		return
+	}
+
+	isSame, folderVersions, err := RedisCacheQueryService.CheckProjectVersion(ctx, uint(projectID), clientVersion)
+	if err != nil {
+		errors.Error(c, errors.InternalError, err)
+		return
+	}
+
+	if isSame {
+		errors.Success(c, gin.H{
+			"same":    true,
+			"message": "版本一致",
+			"folders": []interface{}{},
+		})
+	} else {
+		// 将map转换为数组格式返回
+		var folders []gin.H
+		for folderID, version := range folderVersions {
+			folders = append(folders, gin.H{
+				"folder_id": folderID,
+				"version":   version,
+			})
+		}
+
+		errors.Success(c, gin.H{
+			"same":    false,
+			"message": "版本不一致",
+			"folders": folders,
+		})
+	}
 }
 
 // MoveFile 移动文件
@@ -498,6 +702,46 @@ func CopyFile(c *gin.Context) {
 
 	errors.Success(c, gin.H{
 		"message": "文件复制成功",
+	})
+}
+
+// SubmitChange 提交变更请求
+func SubmitChange(c *gin.Context) {
+	var req model.SubmitChangeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errors.ParamError(c, err.Error())
+		return
+	}
+
+	userID := c.GetUint("user_id")
+	username := c.GetString("username")
+	projectIDStr := c.Param("project_id")
+
+	projectID, err := strconv.ParseUint(projectIDStr, 10, 32)
+	if err != nil {
+		errors.ParamError(c, "项目ID无效")
+		return
+	}
+
+	ctx := c.Request.Context()
+	conflictResult, err := ProjectService.SubmitChangeService(ctx, userID, username, uint(projectID), req.Operations)
+	if err != nil {
+		errors.Error(c, errors.InternalError, err)
+		return
+	}
+
+	// 检查是否有冲突
+	if conflictResult.HasConflict {
+		c.JSON(200, gin.H{
+			"code":             errors.AlreadyExists,
+			"message":          "提交驳回，存在冲突的文件夹",
+			"conflict_folders": conflictResult.ConflictFolders,
+		})
+		return
+	}
+
+	errors.Success(c, gin.H{
+		"message": "变更请求提交成功，等待管理员审批",
 	})
 }
 
@@ -676,6 +920,13 @@ func DeleteMountRelation(c *gin.Context) {
 	if err != nil {
 		errors.Error(c, errors.InternalError, err)
 		return
+	}
+
+	// 卸载文件只影响卸载的虚拟文件夹
+	if CacheUpdateService != nil {
+		if err := CacheUpdateService.SendCacheUpdateByVirtualFolderID(ctx, req.ParentID, model.UpdateReasonModify); err != nil {
+			logger.Warn("发送缓存更新消息失败", zap.Uint("folderID", req.ParentID), zap.Error(err))
+		}
 	}
 
 	errors.Success(c, gin.H{

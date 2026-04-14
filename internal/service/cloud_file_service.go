@@ -22,6 +22,7 @@ type CloudFileService struct {
 	mountRelationService  *MountRelationService
 	minioService          *minio.CloudFileService
 	logger                interfacer.LoggerInterface
+	approvalService       *CloudFileApprovalService
 }
 
 // NewCloudFileService 创建云文件服务
@@ -48,6 +49,11 @@ func NewCloudFileService(
 	}
 }
 
+// SetApprovalService 设置审批服务
+func (s *CloudFileService) SetApprovalService(approvalService *CloudFileApprovalService) {
+	s.approvalService = approvalService
+}
+
 // PrepareUploadRequest 准备上传请求参数
 type PrepareUploadRequest struct {
 	NewRealFileID uint   `json:"new_real_file_id" binding:"required"`
@@ -59,18 +65,20 @@ type PrepareUploadRequest struct {
 
 // PrepareUploadResponse 准备上传响应
 type PrepareUploadResponse struct {
-	PresignedURL string `json:"presigned_url"`
-	Key          string `json:"key"`
-	Bucket       string `json:"bucket"`
-	Expiry       int64  `json:"expiry"`
+	PresignedURL   string `json:"presigned_url"`
+	Key            string `json:"key"`
+	Bucket         string `json:"bucket"`
+	Expiry         int64  `json:"expiry"`
+	ApprovalID     uint   `json:"approval_id,omitempty"`     // 审批项ID
+	ApprovalStatus string `json:"approval_status,omitempty"` // 审批状态
 }
 
 // PrepareUpload 准备文件上传
 // 1. 验证文件存在且属于当前用户
-// 2. 验证文件已挂载到项目的虚拟文件夹（体现多人协作）
-// 3. 验证用户有上传权限（管理员以上或管理员授权）
-// 4. 生成预签名URL和存储信息
-func (s *CloudFileService) PrepareUpload(ctx context.Context, userID uint, req *PrepareUploadRequest) (*PrepareUploadResponse, error) {
+// 2. 检查审批状态（如果启用审批机制）
+// 3. 如果未审批，创建审批项并返回等待审批
+// 4. 如果已批准，生成预签名URL和存储信息
+func (s *CloudFileService) PrepareUpload(ctx context.Context, userID uint, req *PrepareUploadRequest, username string) (*PrepareUploadResponse, error) {
 	// 1. 验证NewRealFile存在且属于当前用户
 	realFile, err := s.newRealFileRepo.GetByID(ctx, req.NewRealFileID)
 	if err != nil {
@@ -97,15 +105,7 @@ func (s *CloudFileService) PrepareUpload(ctx context.Context, userID uint, req *
 		zap.Uint("project_id", req.ProjectID),
 		zap.Uint("root_id", req.RootID))
 
-	// 3. 验证用户有上传权限（管理员以上或管理员授权）
-	// 用户提到：没有管理员以上或者管理员授权才可以上传，登记者也不行。
-	// 一旦有了授权，任何member都可以。
-	// 当前版本简化：暂时跳过权限检查，后续与授权系统一起实现
-	s.logger.Debug("权限检查跳过，待授权系统实现",
-		zap.Uint("user_id", userID),
-		zap.Uint("project_id", req.ProjectID))
-
-	// 4. 检查是否已有云文件记录（避免重复上传）
+	// 3. 检查是否已有云文件记录（避免重复上传）
 	exists, err := s.newCloudFileRepo.ExistsByNewRealFileID(ctx, req.NewRealFileID)
 	if err != nil {
 		s.logger.Error("检查云文件记录失败",
@@ -120,7 +120,57 @@ func (s *CloudFileService) PrepareUpload(ctx context.Context, userID uint, req *
 		return nil, errors.NewError(errors.InternalError, "文件已上传到云端", "internal/service/cloud_file_service.PrepareUpload")
 	}
 
-	// 5. 准备MinIO上传
+	// 4. 检查审批状态（启用审批机制）
+	if s.approvalService != nil {
+		// 获取用户提交的审批项（检查是否已有等待审批的项）
+		userApprovals, err := s.approvalService.approvalRepo.GetApprovalsByUserID(ctx, userID)
+		if err != nil {
+			s.logger.Error("获取用户审批项失败",
+				zap.Uint("user_id", userID),
+				zap.Error(err))
+			return nil, errors.WrapError(err, errors.InternalError, "获取审批状态失败", "internal/service/cloud_file_service.PrepareUpload")
+		}
+
+		// 查找当前文件的审批项
+		var existingApproval *model.CloudFileApproval
+		for _, approval := range userApprovals {
+			if approval.NewRealFileID == req.NewRealFileID &&
+				approval.Status == model.CloudFileApprovalWaiting {
+				existingApproval = approval
+				break
+			}
+		}
+
+		if existingApproval != nil {
+			// 已有等待审批的项，返回等待审批状态
+			s.logger.Info("文件上传等待审批",
+				zap.Uint("user_id", userID),
+				zap.Uint("new_real_file_id", req.NewRealFileID),
+				zap.Uint("approval_id", existingApproval.ID))
+			return &PrepareUploadResponse{
+				ApprovalID:     existingApproval.ID,
+				ApprovalStatus: string(model.CloudFileApprovalWaiting),
+			}, nil
+		}
+
+		// 创建新的审批项
+		approvalID, err := s.approvalService.CreateApproval(ctx, userID, username, req)
+		if err != nil {
+			return nil, err
+		}
+
+		// 返回等待审批状态
+		s.logger.Info("云文件上传审批项已创建，等待审批",
+			zap.Uint("approval_id", approvalID),
+			zap.Uint("user_id", userID),
+			zap.Uint("new_real_file_id", req.NewRealFileID))
+		return &PrepareUploadResponse{
+			ApprovalID:     approvalID,
+			ApprovalStatus: string(model.CloudFileApprovalWaiting),
+		}, nil
+	}
+
+	// 5. 准备MinIO上传（未启用审批机制时直接上传）
 	if s.minioService == nil {
 		s.logger.Error("MinIO服务未初始化")
 		return nil, errors.NewError(errors.InternalError, "云存储服务不可用", "internal/service/cloud_file_service.PrepareUpload")
@@ -149,6 +199,102 @@ func (s *CloudFileService) PrepareUpload(ctx context.Context, userID uint, req *
 		Key:          uploadInfo.Key,
 		Bucket:       uploadInfo.Bucket,
 		Expiry:       uploadInfo.Expiry,
+	}, nil
+}
+
+// GetUploadURLAfterApprovalRequest 获取审批通过后的上传URL请求
+type GetUploadURLAfterApprovalRequest struct {
+	ApprovalID uint `json:"approval_id" binding:"required"`
+}
+
+// GetUploadURLAfterApproval 获取审批通过后的上传URL
+// 当审批通过后，客户端调用此接口获取上传预签名URL
+func (s *CloudFileService) GetUploadURLAfterApproval(ctx context.Context, userID uint, approvalID uint) (*PrepareUploadResponse, error) {
+	// 检查审批服务是否可用
+	if s.approvalService == nil {
+		return nil, errors.NewError(errors.InternalError, "审批服务未初始化", "internal/service/cloud_file_service.GetUploadURLAfterApproval")
+	}
+
+	// 获取审批项信息
+	approval, err := s.approvalService.GetApprovalByID(ctx, approvalID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 检查审批项是否属于当前用户
+	if approval.UserID != userID {
+		s.logger.Warn("用户尝试获取非自己的审批项上传URL",
+			zap.Uint("user_id", userID),
+			zap.Uint("approval_user_id", approval.UserID))
+		return nil, errors.NewError(errors.PermissionDenied, "只能获取自己的审批项上传URL", "internal/service/cloud_file_service.GetUploadURLAfterApproval")
+	}
+
+	// 检查审批状态
+	switch approval.Status {
+	case model.CloudFileApprovalWaiting:
+		return &PrepareUploadResponse{
+			ApprovalID:     approval.ID,
+			ApprovalStatus: string(model.CloudFileApprovalWaiting),
+		}, nil
+	case model.CloudFileApprovalRefused:
+		return &PrepareUploadResponse{
+			ApprovalID:     approval.ID,
+			ApprovalStatus: string(model.CloudFileApprovalRefused),
+		}, nil
+	case model.CloudFileApprovalCompleted:
+		return nil, errors.NewError(errors.InternalError, "文件已上传完成", "internal/service/cloud_file_service.GetUploadURLAfterApproval")
+	case model.CloudFileApprovalApproved:
+		// 审批通过，生成上传URL
+		break
+	default:
+		return nil, errors.NewError(errors.InternalError, "未知审批状态", "internal/service/cloud_file_service.GetUploadURLAfterApproval")
+	}
+
+	// 检查是否已有云文件记录（避免重复上传）
+	exists, err := s.newCloudFileRepo.ExistsByNewRealFileID(ctx, approval.NewRealFileID)
+	if err != nil {
+		s.logger.Error("检查云文件记录失败",
+			zap.Uint("new_real_file_id", approval.NewRealFileID),
+			zap.Error(err))
+		return nil, errors.WrapError(err, errors.InternalError, "系统错误", "internal/service/cloud_file_service.GetUploadURLAfterApproval")
+	}
+
+	if exists {
+		s.logger.Warn("文件已存在云文件记录",
+			zap.Uint("new_real_file_id", approval.NewRealFileID))
+		return nil, errors.NewError(errors.InternalError, "文件已上传到云端", "internal/service/cloud_file_service.GetUploadURLAfterApproval")
+	}
+
+	// 准备MinIO上传
+	if s.minioService == nil {
+		s.logger.Error("MinIO服务未初始化")
+		return nil, errors.NewError(errors.InternalError, "云存储服务不可用", "internal/service/cloud_file_service.GetUploadURLAfterApproval")
+	}
+
+	uploadInfo, err := s.minioService.PrepareUpload(ctx, approval.NewRealFileID, approval.ProjectID, approval.Filename, approval.FileHash)
+	if err != nil {
+		s.logger.Error("准备MinIO上传失败",
+			zap.Uint("new_real_file_id", approval.NewRealFileID),
+			zap.Uint("project_id", approval.ProjectID),
+			zap.String("filename", approval.Filename),
+			zap.Error(err))
+		return nil, err
+	}
+
+	s.logger.Info("审批通过，上传准备完成",
+		zap.Uint("user_id", userID),
+		zap.Uint("approval_id", approvalID),
+		zap.Uint("new_real_file_id", approval.NewRealFileID),
+		zap.String("bucket", uploadInfo.Bucket),
+		zap.String("key", uploadInfo.Key))
+
+	return &PrepareUploadResponse{
+		PresignedURL:   uploadInfo.PresignedURL,
+		Key:            uploadInfo.Key,
+		Bucket:         uploadInfo.Bucket,
+		Expiry:         uploadInfo.Expiry,
+		ApprovalID:     approval.ID,
+		ApprovalStatus: string(model.CloudFileApprovalApproved),
 	}, nil
 }
 
