@@ -49,6 +49,15 @@ func SetupRouter() (*gin.Engine, error) {
 	{
 		raiImage.POST("/recognize", control.RecognizeImage) // 图像识别
 	}
+
+	// AI RAG路由
+	raiRAG := r.Group("/ai/rag")
+	raiRAG.Use(middleware.AuthMiddleware())
+	{
+		raiRAG.POST("/upload", control.UploadAndIndexFile) // 上传文件并创建RAG索引
+		raiRAG.POST("/query", control.QueryRAG)            // 查询RAG知识库
+		raiRAG.DELETE("/index", control.DeleteRAGIndex)    // 删除RAG索引
+	}
 	// 项目路由（无项目权限验证）
 	rproject := r.Group("/project")
 	rproject.Use(middleware.AuthMiddleware())
