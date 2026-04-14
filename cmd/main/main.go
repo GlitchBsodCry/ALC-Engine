@@ -205,6 +205,11 @@ func main() {
 	control.InitAIMCPService(aiMCPService)
 	logger.Info("AI MCP服务初始化完成")
 
+	// 初始化AI TTS服务
+	aiTTSService := service.NewAITTSService()
+	control.InitAITTSService(aiTTSService)
+	logger.Info("AI TTS服务初始化完成")
+
 	projectService := service.NewProjectService(repos.Project, repos.PostgresProject, repos.ChangeRequest, virtualRootService)
 	control.InitProjectService(projectService)
 	logger.Info("Project服务初始化完成")

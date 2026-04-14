@@ -236,3 +236,16 @@ func (s *ChatService) StreamContinueChat(ctx context.Context, userID uint, sessi
 
 	return nil
 }
+
+// GetChatHistory 获取会话聊天历史
+func (s *ChatService) GetChatHistory(ctx context.Context, userID uint, sessionID string) ([]model.ChatMessage, error) {
+	session, err := s.chatRepo.GetSession(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if session.UserID != userID {
+		return nil, errors.New("无权访问该会话")
+	}
+
+	return s.chatRepo.GetSessionMessages(ctx, sessionID)
+}

@@ -38,6 +38,7 @@ func SetupRouter() (*gin.Engine, error) {
 		rchat.POST("/create", control.CreateChat)     // 创建新聊天
 		rchat.POST("/continue", control.ContinueChat) // 继续聊天
 		rchat.GET("/sessions", control.GetSessions)   // 获取会话列表
+		rchat.POST("/history", control.ChatHistory)   // 获取聊天历史
 		// 流式接口
 		rchat.POST("/stream/create", control.StreamCreateChat)     // 流式创建新聊天
 		rchat.POST("/stream/continue", control.StreamContinueChat) // 流式继续聊天
@@ -66,6 +67,15 @@ func SetupRouter() (*gin.Engine, error) {
 		raiMCP.POST("/weather", control.CallWeather) // 天气查询
 		raiMCP.POST("/call", control.CallTool)       // 通用工具调用
 	}
+
+	// AI TTS路由
+	raiTTS := r.Group("/ai/tts")
+	raiTTS.Use(middleware.AuthMiddleware())
+	{
+		raiTTS.POST("/create", control.CreateTTS) // 创建语音合成任务
+		raiTTS.POST("/query", control.QueryTTS)   // 查询语音合成任务状态
+	}
+
 	// 项目路由（无项目权限验证）
 	rproject := r.Group("/project")
 	rproject.Use(middleware.AuthMiddleware())

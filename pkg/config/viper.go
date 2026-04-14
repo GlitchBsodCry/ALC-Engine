@@ -153,3 +153,7 @@ func GetPostgreSQLConfig() model.PostgreSQL {
 	}
 	return model.AppConfig.PostgreSQL
 }
+
+func GetVoiceServiceConfig() model.VoiceService {
+	return model.AppConfig.VoiceService
+}

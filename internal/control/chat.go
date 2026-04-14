@@ -135,43 +135,84 @@ func StreamCreateChat(c *gin.Context) {
 
 // StreamContinueChat 流式继续聊天
 func StreamContinueChat(c *gin.Context) {
-    var req ContinueChatRequest
-    if err := c.ShouldBindJSON(&req); err != nil {
-        errors.ParamError(c, err.Error())
-        return
-    }
+	var req ContinueChatRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errors.ParamError(c, err.Error())
+		return
+	}
 
-    userID := c.GetUint("user_id")
-    
-    // 设置SSE响应头
-    c.Header("Content-Type", "text/event-stream")
-    c.Header("Cache-Control", "no-cache")
-    c.Header("Connection", "keep-alive")
-    c.Header("Access-Control-Allow-Origin", "*")
-    c.Header("X-Accel-Buffering", "no")
+	userID := c.GetUint("user_id")
+	
+	// 设置SSE响应头
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.Header("X-Accel-Buffering", "no")
 
-    // 确保响应可刷新
-    flusher, ok := c.Writer.(http.Flusher)
-    if !ok {
-        errors.Error(c, errors.InternalError, "Streaming not supported")
-        return
-    }
+	// 确保响应可刷新
+	flusher, ok := c.Writer.(http.Flusher)
+	if !ok {
+		errors.Error(c, errors.InternalError, "Streaming not supported")
+		return
+	}
 
-    // 流式回调函数
-    callback := func(chunk string) {
-        c.Writer.Write([]byte("data: " + chunk + "\n\n"))
-        flusher.Flush()
-    }
+	// 流式回调函数
+	callback := func(chunk string) {
+		c.Writer.Write([]byte("data: " + chunk + "\n\n"))
+		flusher.Flush()
+	}
 
-    // 调用服务
-    err := ChatService.StreamContinueChat(c.Request.Context(), userID, req.SessionID, req.Question, callback)
-    if err != nil {
-        c.Writer.Write([]byte("data: [ERROR] " + err.Error() + "\n\n"))
-        flusher.Flush()
-        return
-    }
+	// 调用服务
+	err := ChatService.StreamContinueChat(c.Request.Context(), userID, req.SessionID, req.Question, callback)
+	if err != nil {
+		c.Writer.Write([]byte("data: [ERROR] " + err.Error() + "\n\n"))
+		flusher.Flush()
+		return
+	}
 
-    // 发送完成标记
-    c.Writer.Write([]byte("data: [DONE]\n\n"))
-    flusher.Flush()
+	// 发送完成标记
+	c.Writer.Write([]byte("data: [DONE]\n\n"))
+	flusher.Flush()
+}
+
+// ChatHistoryRequest 获取聊天历史请求
+type ChatHistoryRequest struct {
+	SessionID string `json:"session_id" binding:"required"` // 当前会话ID
+}
+
+// ChatHistoryResponse 获取聊天历史响应
+type ChatHistoryResponse struct {
+	History []model.ChatMessage `json:"history"`
+}
+
+// ChatHistory 获取聊天历史
+// @Summary 获取聊天历史
+// @Description 获取指定会话的聊天消息历史
+// @Tags AI
+// @Accept json
+// @Produce json
+// @Param body body ChatHistoryRequest true "获取聊天历史请求"
+// @Success 200 {object} errors.Response{data=ChatHistoryResponse}
+// @Failure 400 {object} errors.Response
+// @Failure 500 {object} errors.Response
+// @Router /chat/history [post]
+func ChatHistory(c *gin.Context) {
+	var req ChatHistoryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errors.ParamError(c, err.Error())
+		return
+	}
+
+	userID := c.GetUint("user_id")
+	
+	history, err := ChatService.GetChatHistory(c.Request.Context(), userID, req.SessionID)
+	if err != nil {
+		errors.Error(c, errors.InternalError, err.Error())
+		return
+	}
+
+	errors.Success(c, ChatHistoryResponse{
+		History: history,
+	})
 }

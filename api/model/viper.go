@@ -3,19 +3,20 @@ package model
 import "golang.org/x/time/rate"
 
 type Config struct {
-	Server     Server     `mapstructure:"server"`
-	Database   Database   `mapstructure:"database"`
-	PostgreSQL PostgreSQL `mapstructure:"postgresql"`
-	Logger     Logger     `mapstructure:"logger"`
-	JWT        JWT        `mapstructure:"jwt"`
-	SMTP       SMTP       `mapstructure:"smtp"`
-	Redis      Redis      `mapstructure:"redis"`
-	RateLimit  RateLimit  `mapstructure:"rate_limit"`
-	APIKey     APIKey     `mapstructure:"api_key"`
-	AI         AI         `mapstructure:"ai"`
-	RagModel   RagModel   `mapstructure:"rag_model"`
-	RabbitMQ   RabbitMQ   `mapstructure:"rabbitmq"`
-	MinIO      MinIO      `mapstructure:"minio"`
+	Server       Server       `mapstructure:"server"`
+	Database     Database     `mapstructure:"database"`
+	PostgreSQL   PostgreSQL   `mapstructure:"postgresql"`
+	Logger       Logger       `mapstructure:"logger"`
+	JWT          JWT          `mapstructure:"jwt"`
+	SMTP         SMTP         `mapstructure:"smtp"`
+	Redis        Redis        `mapstructure:"redis"`
+	RateLimit    RateLimit    `mapstructure:"rate_limit"`
+	APIKey       APIKey       `mapstructure:"api_key"`
+	AI           AI           `mapstructure:"ai"`
+	RagModel     RagModel     `mapstructure:"rag_model"`
+	RabbitMQ     RabbitMQ     `mapstructure:"rabbitmq"`
+	MinIO        MinIO        `mapstructure:"minio"`
+	VoiceService VoiceService `mapstructure:"voice_service"`
 }
 
 var AppConfig Config
@@ -121,4 +122,10 @@ type MinIO struct {
 	UseSSL          bool   `mapstructure:"use_ssl"`           // 是否使用SSL
 	DefaultBucket   string `mapstructure:"default_bucket"`    // 默认存储桶
 	Region          string `mapstructure:"region"`            // 区域（可空）
+}
+
+// VoiceService 语音服务配置（百度TTS）
+type VoiceService struct {
+	VoiceServiceApiKey    string `mapstructure:"api_key"`    // 百度语音API Key
+	VoiceServiceSecretKey string `mapstructure:"secret_key"` // 百度语音Secret Key
 }
