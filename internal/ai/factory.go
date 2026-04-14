@@ -46,7 +46,8 @@ func (f *AIModelFactory) registerCreators() {
 		if !ok {
 			return nil, errors.NewError(errors.InvalidParams, "rag requires username in cfg", "AIModelFactory.registerCreators")
 		}
-		return NewAliRAGModel(ctx, u)
+		ragFile, _ := str(cfg, "rag_filename")
+		return NewAliRAGModel(ctx, u, ragFile)
 	}
 	f.creators[ModelTypeMCP] = func(ctx context.Context, cfg map[string]interface{}) (AIModel, error) {
 		return NewMCPModel(ctx)

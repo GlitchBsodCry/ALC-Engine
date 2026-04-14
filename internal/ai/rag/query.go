@@ -29,21 +29,6 @@ func ragAPIKey() string {
 }
 
 func NewRAGQuery(ctx context.Context, username string) (*RAGQuery, error) {
-	rdb := config.GetRedisClient()
-	if rdb == nil {
-		return nil, fmt.Errorf("redis not available")
-	}
-	cfg := config.GetRagModelConfig()
-	apiKey := ragAPIKey()
-	embedConfig := &embeddingArk.EmbeddingConfig{
-		BaseURL: cfg.RagBaseURL,
-		APIKey:  apiKey,
-		Model:   cfg.RagEmbeddingModel,
-	}
-	embedder, err := embeddingArk.NewEmbedder(ctx, embedConfig)
-	if err != nil {
-		return nil, fmt.Errorf("create embedder: %w", err)
-	}
 	userDir := filepath.Join("uploads", username)
 	files, err := os.ReadDir(userDir)
 	if err != nil || len(files) == 0 {
@@ -58,6 +43,26 @@ func NewRAGQuery(ctx context.Context, username string) (*RAGQuery, error) {
 	}
 	if filename == "" {
 		return nil, fmt.Errorf("no valid file for user %s", username)
+	}
+	return NewRAGQueryForFile(ctx, filename)
+}
+
+// NewRAGQueryForFile builds a retriever for an explicit indexed filename (e.g. after MinIO indexing).
+func NewRAGQueryForFile(ctx context.Context, filename string) (*RAGQuery, error) {
+	rdb := config.GetRedisClient()
+	if rdb == nil {
+		return nil, fmt.Errorf("redis not available")
+	}
+	cfg := config.GetRagModelConfig()
+	apiKey := ragAPIKey()
+	embedConfig := &embeddingArk.EmbeddingConfig{
+		BaseURL: cfg.RagBaseURL,
+		APIKey:  apiKey,
+		Model:   cfg.RagEmbeddingModel,
+	}
+	embedder, err := embeddingArk.NewEmbedder(ctx, embedConfig)
+	if err != nil {
+		return nil, fmt.Errorf("create embedder: %w", err)
 	}
 	dim := cfg.RagDimension
 	if err := InitRedisIndex(ctx, rdb, filename, dim); err != nil {

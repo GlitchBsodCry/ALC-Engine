@@ -19,13 +19,17 @@ func InitChatService(svc *service.ChatService) {
 
 // CreateChatRequest 创建新聊天请求
 type CreateChatRequest struct {
-    Question string `json:"question" binding:"required"`
+	Question    string `json:"question" binding:"required"`
+	MinioBucket string `json:"minio_bucket,omitempty"` // 可选：解析问题中的文件名时在 MinIO 中查找的桶
+	MinioPrefix string `json:"minio_prefix,omitempty"` // 可选：对象 key 前缀
 }
 
 // ContinueChatRequest 继续聊天请求
 type ContinueChatRequest struct {
-    SessionID string `json:"session_id" binding:"required"` // 必须提供
-    Question  string `json:"question" binding:"required"`
+	SessionID   string `json:"session_id" binding:"required"` // 必须提供
+	Question    string `json:"question" binding:"required"`
+	MinioBucket string `json:"minio_bucket,omitempty"`
+	MinioPrefix string `json:"minio_prefix,omitempty"`
 }
 
 // CreateChat 创建新聊天（新会话）
@@ -39,7 +43,7 @@ func CreateChat(c *gin.Context) {
     userID := c.GetUint("user_id")
     
     // 调用服务，sessionID为空表示创建新会话
-    sessionID, answer, err := ChatService.CreateChat(c.Request.Context(), userID, req.Question)
+	sessionID, answer, err := ChatService.CreateChat(c.Request.Context(), userID, req.Question, req.MinioBucket, req.MinioPrefix)
     if err != nil {
         errors.Error(c, errors.InternalError, "AI调用失败: "+err.Error())
         return
@@ -62,7 +66,7 @@ func ContinueChat(c *gin.Context) {
     userID := c.GetUint("user_id")
     
     // 调用服务，必须提供sessionID
-    answer, err := ChatService.ContinueChat(c.Request.Context(), userID, req.SessionID, req.Question)
+	answer, err := ChatService.ContinueChat(c.Request.Context(), userID, req.SessionID, req.Question, req.MinioBucket, req.MinioPrefix)
     if err != nil {
         errors.Error(c, errors.InternalError, "AI调用失败: "+err.Error())
         return
@@ -121,7 +125,7 @@ func StreamCreateChat(c *gin.Context) {
     }
 
     // 调用服务
-    sessionID, err := ChatService.StreamChat(c.Request.Context(), userID, req.Question, callback)
+	sessionID, err := ChatService.StreamChat(c.Request.Context(), userID, req.Question, req.MinioBucket, req.MinioPrefix, callback)
     if err != nil {
         c.Writer.Write([]byte("data: [ERROR] " + err.Error() + "\n\n"))
         flusher.Flush()
@@ -164,7 +168,7 @@ func StreamContinueChat(c *gin.Context) {
 	}
 
 	// 调用服务
-	err := ChatService.StreamContinueChat(c.Request.Context(), userID, req.SessionID, req.Question, callback)
+	err := ChatService.StreamContinueChat(c.Request.Context(), userID, req.SessionID, req.Question, req.MinioBucket, req.MinioPrefix, callback)
 	if err != nil {
 		c.Writer.Write([]byte("data: [ERROR] " + err.Error() + "\n\n"))
 		flusher.Flush()

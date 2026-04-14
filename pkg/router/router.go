@@ -69,11 +69,19 @@ func SetupRouter() (*gin.Engine, error) {
 	}
 
 	// AI TTS路由
-	raiTTS := r.Group("/ai/tts")
-	raiTTS.Use(middleware.AuthMiddleware())
+	traiTTS := r.Group("/ai/tts")
+	traiTTS.Use(middleware.AuthMiddleware())
 	{
-		raiTTS.POST("/create", control.CreateTTS) // 创建语音合成任务
-		raiTTS.POST("/query", control.QueryTTS)   // 查询语音合成任务状态
+		traiTTS.POST("/create", control.CreateTTS) // 创建语音合成任务
+		traiTTS.POST("/query", control.QueryTTS)   // 查询语音合成任务状态
+	}
+
+	// AI智能查询路由
+	traiSmart := r.Group("/ai/smart")
+	traiSmart.Use(middleware.AuthMiddleware())
+	{
+		traiSmart.POST("/query", control.SmartQuery)         // 智能查询
+		traiSmart.POST("/process", control.ProcessMinIOFile) // 处理MinIO文件
 	}
 
 	// 项目路由（无项目权限验证）

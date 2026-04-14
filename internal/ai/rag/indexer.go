@@ -78,7 +78,17 @@ func NewRAGIndexer(filename, embeddingModel string) (*RAGIndexer, error) {
 	}, nil
 }
 
-func (r *RAGIndexer) IndexFile(ctx context.Context, filePath string) error {
+func (r *RAGIndexer) IndexFile(ctx context.Context, doc *schema.Document) error {
+	_, err := r.indexer.Store(ctx, []*schema.Document{doc})
+	if err != nil {
+		return fmt.Errorf("failed to store document: %w", err)
+	}
+
+	return nil
+}
+
+// IndexFileFromPath 从文件路径索引文件（保留原有功能）
+func (r *RAGIndexer) IndexFileFromPath(ctx context.Context, filePath string) error {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to read file: %w", err)
@@ -89,6 +99,30 @@ func (r *RAGIndexer) IndexFile(ctx context.Context, filePath string) error {
 		Content: string(content),
 		MetaData: map[string]any{
 			"source": filePath,
+		},
+	}
+
+	return r.IndexFile(ctx, doc)
+}
+
+// IndexFromMinIO 从MinIO索引文件
+func (r *RAGIndexer) IndexFromMinIO(ctx context.Context, bucket string, key string, filename string) error {
+	minioService := config.GetCloudFileService()
+	if minioService == nil {
+		return fmt.Errorf("minio service is nil")
+	}
+
+	content, err := minioService.GetObjectContent(ctx, bucket, key)
+	if err != nil {
+		return fmt.Errorf("failed to get object content: %w", err)
+	}
+
+	doc := &schema.Document{
+		ID:      "doc_1",
+		Content: string(content),
+		MetaData: map[string]any{
+			"source":   fmt.Sprintf("minio://%s/%s", bucket, key),
+			"filename": filename,
 		},
 	}
 

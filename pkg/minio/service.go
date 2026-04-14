@@ -3,10 +3,11 @@ package minio
 import (
 	"context"
 	"fmt"
-	"net/url"
+	"io"
 	"mygo_bangforai/api/errors"
 	"mygo_bangforai/api/model"
 	"mygo_bangforai/pkg/interfacer"
+	"net/url"
 	"time"
 
 	"github.com/minio/minio-go/v7"
@@ -46,7 +47,7 @@ func (s *CloudFileService) PrepareUpload(ctx context.Context, newRealFileID uint
 	key := s.keyGen.GenerateKey(newRealFileID, filename)
 	bucket := s.keyGen.GenerateBucketName(projectID)
 	mimeType := s.keyGen.InferMimeType(filename)
-	
+
 	// 确保存储桶存在
 	err := s.ensureBucketExists(ctx, bucket)
 	if err != nil {
@@ -55,7 +56,7 @@ func (s *CloudFileService) PrepareUpload(ctx context.Context, newRealFileID uint
 			zap.Error(err))
 		return nil, errors.WrapError(err, errors.InternalError, "存储桶创建失败", "pkg/minio/service.PrepareUpload")
 	}
-	
+
 	// 生成预签名URL（PUT操作，15分钟有效期）
 	expiry := 15 * time.Minute
 	presignedURL, err := s.minioClient.PresignedPutObject(ctx, bucket, key, expiry)
@@ -66,7 +67,7 @@ func (s *CloudFileService) PrepareUpload(ctx context.Context, newRealFileID uint
 			zap.Error(err))
 		return nil, errors.WrapError(err, errors.InternalError, "预签名URL生成失败", "pkg/minio/service.PrepareUpload")
 	}
-	
+
 	s.logger.Info("上传准备完成",
 		zap.Uint("new_real_file_id", newRealFileID),
 		zap.Uint("project_id", projectID),
@@ -74,7 +75,7 @@ func (s *CloudFileService) PrepareUpload(ctx context.Context, newRealFileID uint
 		zap.String("key", key),
 		zap.String("bucket", bucket),
 		zap.String("mime_type", mimeType))
-	
+
 	return &UploadInfo{
 		PresignedURL: presignedURL.String(),
 		Key:          key,
@@ -102,7 +103,7 @@ func (s *CloudFileService) VerifyUpload(ctx context.Context, bucket string, key 
 			zap.Error(err))
 		return false, nil, errors.WrapError(err, errors.InternalError, "文件状态检查失败", "pkg/minio/service.VerifyUpload")
 	}
-	
+
 	// 记录对象信息
 	s.logger.Debug("对象信息",
 		zap.String("bucket", bucket),
@@ -110,7 +111,7 @@ func (s *CloudFileService) VerifyUpload(ctx context.Context, bucket string, key 
 		zap.Int64("size", objInfo.Size),
 		zap.String("etag", objInfo.ETag),
 		zap.String("content_type", objInfo.ContentType))
-	
+
 	return true, &objInfo, nil
 }
 
@@ -121,14 +122,14 @@ func (s *CloudFileService) ensureBucketExists(ctx context.Context, bucket string
 	if err != nil {
 		return errors.WrapError(err, errors.InternalError, "检查存储桶失败", "pkg/minio/service.ensureBucketExists")
 	}
-	
+
 	if !exists {
 		// 创建存储桶
 		err = s.minioClient.MakeBucket(ctx, bucket, minio.MakeBucketOptions{})
 		if err != nil {
 			return errors.WrapError(err, errors.InternalError, "创建存储桶失败", "pkg/minio/service.ensureBucketExists")
 		}
-		
+
 		// 设置存储桶策略（公开读取，私有写入）
 		policy := fmt.Sprintf(`{
 			"Version": "2012-10-17",
@@ -141,7 +142,7 @@ func (s *CloudFileService) ensureBucketExists(ctx context.Context, bucket string
 				}
 			]
 		}`, bucket)
-		
+
 		err = s.minioClient.SetBucketPolicy(ctx, bucket, policy)
 		if err != nil {
 			s.logger.Warn("设置存储桶策略失败",
@@ -149,11 +150,11 @@ func (s *CloudFileService) ensureBucketExists(ctx context.Context, bucket string
 				zap.Error(err))
 			// 不返回错误，继续执行
 		}
-		
+
 		s.logger.Info("存储桶创建成功",
 			zap.String("bucket", bucket))
 	}
-	
+
 	return nil
 }
 
@@ -168,16 +169,16 @@ func (s *CloudFileService) CreateCloudFileRecord(
 	fileHash string,
 ) *model.NewCloudFile {
 	mimeType := s.keyGen.InferMimeType(filename)
-	
+
 	return &model.NewCloudFile{
-		NewRealFileID:     newRealFileID,
-		ProjectId:         projectID,
-		RootID:            rootID,
-		CloudStroageKey:   objInfo.Key,
-		Bucket:            bucket,
-		MimeType:          mimeType,
-		Name:              filename,
-		Hash:              fileHash,
+		NewRealFileID:   newRealFileID,
+		ProjectId:       projectID,
+		RootID:          rootID,
+		CloudStroageKey: objInfo.Key,
+		Bucket:          bucket,
+		MimeType:        mimeType,
+		Name:            filename,
+		Hash:            fileHash,
 	}
 }
 
@@ -186,7 +187,7 @@ func (s *CloudFileService) GenerateDownloadURL(ctx context.Context, bucket strin
 	// 设置响应头，支持浏览器下载
 	reqParams := make(url.Values)
 	reqParams.Set("response-content-disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
-	
+
 	// 生成预签名URL（1小时有效期）
 	expiry := 1 * time.Hour
 	presignedURL, err := s.minioClient.PresignedGetObject(ctx, bucket, key, expiry, reqParams)
@@ -197,6 +198,63 @@ func (s *CloudFileService) GenerateDownloadURL(ctx context.Context, bucket strin
 			zap.Error(err))
 		return "", errors.WrapError(err, errors.InternalError, "下载URL生成失败", "pkg/minio/service.GenerateDownloadURL")
 	}
-	
+
 	return presignedURL.String(), nil
+}
+
+// GetObjectContent 获取对象内容
+func (s *CloudFileService) GetObjectContent(ctx context.Context, bucket string, key string) ([]byte, error) {
+	obj, err := s.minioClient.GetObject(ctx, bucket, key, minio.GetObjectOptions{})
+	if err != nil {
+		s.logger.Error("获取对象失败",
+			zap.String("bucket", bucket),
+			zap.String("key", key),
+			zap.Error(err))
+		return nil, errors.WrapError(err, errors.InternalError, "获取对象失败", "pkg/minio/service.GetObjectContent")
+	}
+	defer obj.Close()
+
+	content, err := io.ReadAll(obj)
+	if err != nil {
+		s.logger.Error("读取对象内容失败",
+			zap.String("bucket", bucket),
+			zap.String("key", key),
+			zap.Error(err))
+		return nil, errors.WrapError(err, errors.InternalError, "读取对象内容失败", "pkg/minio/service.GetObjectContent")
+	}
+
+	s.logger.Info("获取对象内容成功",
+		zap.String("bucket", bucket),
+		zap.String("key", key),
+		zap.Int("size", len(content)))
+
+	return content, nil
+}
+
+// ListObjects 列出存储桶中的对象
+func (s *CloudFileService) ListObjects(ctx context.Context, bucket string, prefix string) ([]minio.ObjectInfo, error) {
+	var objects []minio.ObjectInfo
+
+	objCh := s.minioClient.ListObjects(ctx, bucket, minio.ListObjectsOptions{
+		Prefix:    prefix,
+		Recursive: true,
+	})
+
+	for obj := range objCh {
+		if obj.Err != nil {
+			s.logger.Error("列出对象失败",
+				zap.String("bucket", bucket),
+				zap.String("prefix", prefix),
+				zap.Error(obj.Err))
+			return nil, errors.WrapError(obj.Err, errors.InternalError, "列出对象失败", "pkg/minio/service.ListObjects")
+		}
+		objects = append(objects, obj)
+	}
+
+	s.logger.Info("列出对象成功",
+		zap.String("bucket", bucket),
+		zap.String("prefix", prefix),
+		zap.Int("count", len(objects)))
+
+	return objects, nil
 }

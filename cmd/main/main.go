@@ -182,14 +182,6 @@ func main() {
 	control.InitTagService(tagService)
 	logger.Info("Service层初始化完成")
 
-	chatpos := repository.NewChatRepository(config.GetDB())
-	chatService, err := service.NewChatService(chatpos)
-	if err != nil {
-		logger.Fatalf("初始化Chat服务失败: %v", err)
-	}
-	control.InitChatService(chatService)
-	logger.Info("Chat服务初始化完成")
-
 	// 初始化AI图像识别服务
 	aiImageService := service.NewAIImageService()
 	control.InitAIImageService(aiImageService)
@@ -209,6 +201,19 @@ func main() {
 	aiTTSService := service.NewAITTSService()
 	control.InitAITTSService(aiTTSService)
 	logger.Info("AI TTS服务初始化完成")
+
+	// 初始化文件处理器服务（需在 Chat 服务之前，用于会话内 MinIO 文件解析）
+	fileProcessorService := service.NewFileProcessor()
+	control.InitFileProcessorService(fileProcessorService)
+	logger.Info("文件处理器服务初始化完成")
+
+	chatpos := repository.NewChatRepository(config.GetDB())
+	chatService, err := service.NewChatService(chatpos, fileProcessorService)
+	if err != nil {
+		logger.Fatalf("初始化Chat服务失败: %v", err)
+	}
+	control.InitChatService(chatService)
+	logger.Info("Chat服务初始化完成")
 
 	projectService := service.NewProjectService(repos.Project, repos.PostgresProject, repos.ChangeRequest, virtualRootService)
 	control.InitProjectService(projectService)

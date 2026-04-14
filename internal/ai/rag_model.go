@@ -18,11 +18,12 @@ import (
 )
 
 type AliRAGModel struct {
-	llm      model.ToolCallingChatModel
-	username string
+	llm         model.ToolCallingChatModel
+	username    string
+	ragFilename string // optional: indexed logical filename (e.g. after MinIO indexing)
 }
 
-func NewAliRAGModel(ctx context.Context, username string) (*AliRAGModel, error) {
+func NewAliRAGModel(ctx context.Context, username, ragFilename string) (*AliRAGModel, error) {
 	cfg := config.GetRagModelConfig()
 	apiKey := os.Getenv("OPENAI_API_KEY")
 	if apiKey == "" {
@@ -39,11 +40,18 @@ func NewAliRAGModel(ctx context.Context, username string) (*AliRAGModel, error) 
 	if err != nil {
 		return nil, errors.WrapError(err, errors.ServiceError, "create ali rag model", "NewAliRAGModel")
 	}
-	return &AliRAGModel{llm: llm, username: username}, nil
+	return &AliRAGModel{llm: llm, username: username, ragFilename: ragFilename}, nil
+}
+
+func (o *AliRAGModel) openRAGQuery(ctx context.Context) (*airag.RAGQuery, error) {
+	if o.ragFilename != "" {
+		return airag.NewRAGQueryForFile(ctx, o.ragFilename)
+	}
+	return airag.NewRAGQuery(ctx, o.username)
 }
 
 func (o *AliRAGModel) GenerateResponse(ctx context.Context, messages []*schema.Message) (*schema.Message, error) {
-	ragQuery, err := airag.NewRAGQuery(ctx, o.username)
+	ragQuery, err := o.openRAGQuery(ctx)
 	if err != nil {
 		logger.Warn("RAG query unavailable", zap.Error(err), zap.String("user", o.username))
 		resp, err2 := o.llm.Generate(ctx, messages)
@@ -78,7 +86,7 @@ func (o *AliRAGModel) GenerateResponse(ctx context.Context, messages []*schema.M
 }
 
 func (o *AliRAGModel) StreamResponse(ctx context.Context, messages []*schema.Message, cb StreamCallback) (string, error) {
-	ragQuery, err := airag.NewRAGQuery(ctx, o.username)
+	ragQuery, err := o.openRAGQuery(ctx)
 	if err != nil {
 		logger.Warn("RAG query unavailable", zap.Error(err))
 		return o.streamWithoutRAG(ctx, messages, cb)

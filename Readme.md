@@ -9,16 +9,6 @@ ALC Engine (Ai Assistant Lite Cloud Engine) 是一个集成了AI智能对话与�
 
 ## 🎯 核心功能
 
-### AI聊天模块
-
-- 🤖 **多模型支持** - OpenAI、RAG、MCP、Ollama 等多种模型类型
-- 💬 **会话管理** - 完整的会话创建、继续、历史记录管理
-- 🖼️ **图像识别** - ONNXRuntime 图像推理与识别
-- 📚 **RAG检索增强** - 文档向量化与检索增强生成
-- 🔧 **MCP工具调用** - Model Context Protocol 外部工具调用能力
-- 🔊 **TTS语音合成** - 百度语音合成集成
-- ✅ **流式响应** - 支持实时流式输出
-
 ### 虚拟文件夹系统 
 
 #### 文件空间
@@ -68,19 +58,45 @@ ALC Engine (Ai Assistant Lite Cloud Engine) 是一个集成了AI智能对话与�
 
 ![cloudfile](image/cloudfile.260407.png)
 
+### AI聊天模块
+
+- 🤖 **多模型支持** - OpenAI、RAG、MCP、Ollama 等多种模型类型
+- 💬 **会话管理** - 完整的会话创建、继续、历史记录管理
+- 🖼️ **图像识别** - ONNXRuntime 图像推理与识别
+- 📚 **RAG检索增强** - 文档向量化与检索增强生成
+- 🔧 **MCP工具调用** - Model Context Protocol 外部工具调用能力
+- 🔊 **TTS语音合成** - 百度语音合成集成
+- ✅ **流式响应** - 支持实时流式输出
+
+#### 智能文件理解
+
+当用户提问中提到相关文件时，系统会自动根据文件类型采取相应的处理策略，从对象存储中获得文件信息，无需用户额外操作和发送文件即可获得准确的回答。
+
+![提问](image/提问.png)
+
+#### 虚拟文件夹结构理解
+
+系统能够理解虚拟文件夹的嵌套关系和调用关系，通过MCP工具实现对虚拟文件夹结构的智能解析与操作。
+
+![提问2](image/提问2.png)
+
+
 ## 🏗️ 技术架构
 
 ### 技术栈
 
 | 类别   | 技术选型                         |
 | ---- | ---------------------------- |
-| 后端框架 | Go 1.26 + Gin                |
-| AI集成 | CloudWeGo Eino + SiliconFlow |
-| 数据库  | PostgreSQL (主) + MySQL (兼容)  |
-| 对象存储 | MinIO                        |
-| 消息队列 | RabbitMQ (基础集成)              |
-| 缓存   | Redis (令牌黑名单)                |
-| 配置管理 | Viper (YAML配置)               |
+| 后端框架 | Go 1.26.0 + Gin v1.10.1      |
+| AI集成 | CloudWeGo Eino v0.7.34       |
+| 模型支持 | Ollama + OpenAI              |
+| 向量检索 | Redis Retriever              |
+| 数据库  | PostgreSQL 16 + MySQL (兼容)   |
+| 对象存储 | MinIO v7                     |
+| 消息队列 | RabbitMQ                     |
+| 缓存   | Redis v9                     |
+| 配置管理 | Viper v1.21.0                |
+| 语音合成 | ONNX Runtime                 |
 
 <br />
 
@@ -109,75 +125,110 @@ postgresql:
   host: "localhost"
   port: "5432"
   dbname: "alc_engine"
+
+# Redis配置
+redis:
+  addr: "localhost:6379"
+  password: ""
+  db: 0
+
+# RabbitMQ配置
+rabbitmq:
+  url: "amqp://guest:guest@localhost:5672/"
 ```
 
 ## 📡 API概览
 
 ### 认证相关
 
-- `POST /user/login` - 用户登录
 - `POST /user/register` - 用户注册
-- `POST /auth/verify` - 令牌验证
+- `POST /user/login` - 用户登录
+- `POST /user/logincode` - 验证码登录
+- `POST /user/code` - 发送登录验证码
+- `POST /user/registercode` - 发送注册验证码
+- `POST /user/refresh` - Token刷新
+- `POST /user/reset-password-code` - 发送找回密码验证码
+- `POST /user/reset-password` - 重置密码
+- `GET /auth/verify` - 令牌验证
+- `POST /auth/logout` - 退出登录
 
 ### AI聊天 (核心)
 
-- `POST /ai/chat/create` - 创建新聊天会话
-- `POST /ai/chat/continue` - 继续现有会话
-- `POST /ai/chat/stream/create` - 流式创建会话
-- `POST /ai/chat/stream/continue` - 流式继续会话
-- `GET /ai/chat/sessions` - 获取用户会话列表
+- `POST /chat/create` - 创建新聊天
+- `POST /chat/continue` - 继续聊天
+- `GET /chat/sessions` - 获取会话列表
+- `POST /chat/history` - 获取聊天历史
+- `POST /chat/stream/create` - 流式创建新聊天
+- `POST /chat/stream/continue` - 流式继续聊天
 
 ### AI图像识别
 
 - `POST /ai/image/recognize` - 图像识别
-- `GET /ai/image/history` - 获取识别历史
 
 ### AI RAG服务
 
-- `POST /ai/rag/index` - 文档向量化索引
-- `POST /ai/rag/query` - RAG检索问答
+- `POST /ai/rag/upload` - 上传文件并创建索引
+- `POST /ai/rag/query` - 查询RAG知识库
+- `DELETE /ai/rag/index` - 删除RAG索引
+
+### AI MCP工具调用
+
+- `POST /ai/mcp/weather` - 天气查询
+- `POST /ai/mcp/call` - 通用工具调用
 
 ### AI TTS语音合成
 
-- `POST /ai/tts/synthesize` - 文本转语音
+- `POST /ai/tts/create` - 创建语音合成任务
+- `POST /ai/tts/query` - 查询任务状态
 
-### 文件管理 (核心)
+### AI智能查询
 
-- `POST /file/loginfile` - 登记文件（批量）
-- `POST /file/newmount` - 文件挂载到文件夹
-- `DELETE /file/deletemount` - 解除挂载关系
-- `PUT /file/newrename` - 重命名文件
-- `DELETE /file/logoutfile` - 登出文件
+- `POST /ai/smart/query` - 智能查询
+- `POST /ai/smart/process` - 处理MinIO文件
 
-### 云文件服务
+### 项目管理
 
-- `GET /file/cloud/upload` - 获取上传URL
-- `POST /file/cloud/upload` - 确认上传完成
-- `GET /file/cloud/download/:id` - 获取下载URL
-- `POST /file/cloud/sync` - 确认同步完成
+- `POST /project/create` - 创建新项目
+- `GET /project/list` - 获取项目列表
 
-### 虚拟文件夹
+### 项目特定操作 (`/project/:project_id/`)
 
-- `POST /virtual/folder` - 创建虚拟文件夹
-- `PUT /virtual/folder` - 修改文件夹
-- `DELETE /virtual/folder/:id` - 删除文件夹
-- `PUT /virtual/folder/move` - 移动文件夹
-- `GET /virtual/folder/root/:id` - 获取根目录文件夹
-- `GET /virtual/folder/parent/:id` - 获取子文件夹
+- **成员管理**
+  - `GET /members` - 获取项目成员
+  - `POST /members` - 添加项目成员
+  - `PUT /members` - 更新成员权限
 
-### 变更管理
+- **标签管理**
+  - `GET /tags` - 获取项目标签
+  - `POST /tags` - 创建标签
+  - `PUT /tags` - 更新标签
+  - `DELETE /tags/:tag_id` - 删除标签
 
-- `POST /changes` - 提交批量变更申请
-- `GET /changes/pending` - 获取待审批变更列表
-- `PUT /changes/approve/:id` - 批准变更申请
-- `PUT /changes/reject/:id` - 拒绝变更申请
+- **虚拟文件夹**
+  - `GET /folders/root` - 获取根目录
+  - `GET /folders/parent/:parent_id` - 获取子文件夹
+  - `POST /folders` - 创建虚拟文件夹
+  - `PUT /folders` - 更新虚拟文件夹
+  - `DELETE /folders/:folder_id` - 删除文件夹
+  - `PUT /folders/move` - 移动文件夹
 
-### 项目成员管理
+- **文件管理**
+  - `POST /files/login` - 登记文件
+  - `POST /files/mount` - 挂载文件
+  - `DELETE /files/unmount` - 卸载文件
+  - `DELETE /files/logout` - 注销文件
+  - `PUT /files/rename` - 重命名文件
 
-- `POST /project/:id/member` - 添加项目成员
-- `PUT /project/:id/member/:userid` - 更新成员权限
-- `DELETE /project/:id/member/:userid` - 移除项目成员
-- `GET /project/:id/members` - 获取项目成员列表
+- **云文件服务**
+  - `GET /cloud/download/:cloud_file_id` - 获取下载URL
+  - `POST /cloud/sync` - 确认文件同步
+  - `GET /cloud/upload` - 获取上传URL
+  - `POST /cloud/upload` - 完成上传
+
+- **变更管理**
+  - `POST /changes` - 提交变更请求
+  - `GET /changes/pending` - 待审批列表
+  - `POST /approve-change` - 审批变更请求
 
 ## 🔧 开发指南
 
@@ -192,10 +243,13 @@ ALC Engine/
 ├── image/                 # 图片资源
 ├── internal/              # 内部包
 │   ├── ai/               # AI模块 (核心)
-│   │   ├── image/        # 图像识别
+│   │   ├── image/        # 图像识别(ONNX)
 │   │   ├── rag/          # RAG检索增强
 │   │   ├── mcp/          # MCP工具调用
-│   │   └── tts/          # 语音合成
+│   │   ├── tts/          # 语音合成
+│   │   ├── factory.go    # 模型工厂
+│   │   ├── manager.go    # AI管理器
+│   │   └── model.go      # 基础模型
 │   ├── control/          # 控制器层
 │   ├── rabbitmq/         # RabbitMQ消息队列
 │   ├── repository/       # 数据访问层
@@ -204,29 +258,42 @@ ALC Engine/
 │   ├── config/           # 配置管理
 │   ├── interfacer/       # 接口定义
 │   ├── logger/           # 日志系统
-│   ├── middleware/       # 中间件
+│   ├── middleware/       # 中间件(认证/限流/CORS)
 │   ├── minio/            # MinIO对象存储
 │   ├── router/           # 路由定义
 │   └── utils/            # 工具函数
-└── config.yaml           # 配置文件
+├── docker-compose.yml     # Docker配置
+├── go.mod                 # Go依赖
+└── config.yaml            # 配置文件
 ```
 
 ### 扩展AI模型
 
-1. 在 `internal/ai/` 添加新模型实现
-2. 在 `factory.go` 注册模型创建器
-3. 更新配置支持新模型类型
+1. 在 `internal/ai/` 创建新模型包
+2. 实现 `AIModel` 接口
+3. 在 `internal/ai/factory.go` 注册模型
+4. 更新配置文件支持新模型
 
 ### 添加新API
 
-1. 在 `pkg/router/router.go` 定义路由
+1. 在 `api/model/` 定义请求/响应结构
 2. 在 `internal/control/` 创建控制器
 3. 在 `internal/service/` 实现业务逻辑
 4. 在 `internal/repository/` 添加数据访问
+5. 在 `pkg/router/router.go` 注册路由
+
+### 项目权限说明
+
+项目支持五种权限等级（从高到低）：
+- **owner** - 项目所有者，拥有全部权限
+- **admin** - 管理员，可审批变更、管理成员
+- **member** - 成员，可提交变更请求
+- **viewer** - 查看者，仅可查看项目内容
+- **ban** - 被封禁用户
 
 ## 📊 版本说明
 
-### v2.0.0 (当前版本)
+### v3.0.0 (当前版本)
 
 - ✅ 权限控制系统
 - ✅ 多人协作优化
@@ -242,7 +309,6 @@ ALC Engine/
 
 ### 后续规划
 
-- AI辅助虚拟文件夹管理
 - 更好的实时性
 
 <br />

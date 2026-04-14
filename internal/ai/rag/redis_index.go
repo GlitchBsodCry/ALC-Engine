@@ -40,6 +40,22 @@ func InitRedisIndex(ctx context.Context, rdb *redis.Client, filename string, dim
 	return nil
 }
 
+// RedisIndexExists returns whether a RediSearch index exists for the given logical filename.
+func RedisIndexExists(ctx context.Context, rdb *redis.Client, filename string) (bool, error) {
+	if rdb == nil {
+		return false, fmt.Errorf("redis client is nil")
+	}
+	indexName := GenerateIndexName(filename)
+	_, err := rdb.Do(ctx, "FT.INFO", indexName).Result()
+	if err == nil {
+		return true, nil
+	}
+	if strings.Contains(err.Error(), "Unknown index name") {
+		return false, nil
+	}
+	return false, fmt.Errorf("check index: %w", err)
+}
+
 func DeleteRedisIndex(ctx context.Context, rdb *redis.Client, filename string) error {
 	if rdb == nil {
 		return fmt.Errorf("redis client is nil")

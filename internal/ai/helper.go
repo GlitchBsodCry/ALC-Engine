@@ -100,11 +100,19 @@ func (a *AIHelper) GetHistory() []map[string]string {
 }
 
 func (a *AIHelper) GenerateResponse(ctx context.Context, userQuestion string) (*apimodel.ChatMessage, error) {
-	a.AddMessage(userQuestion, true)
+	return a.GenerateResponseWithModelContent(ctx, userQuestion, userQuestion)
+}
+
+// GenerateResponseWithModelContent stores userQuestionForHistory in the session but sends modelUserContent as the last user turn to the model (e.g. RAG-augmented prompt).
+func (a *AIHelper) GenerateResponseWithModelContent(ctx context.Context, userQuestionForHistory string, modelUserContent string) (*apimodel.ChatMessage, error) {
+	a.AddMessage(userQuestionForHistory, true)
 
 	a.mu.RLock()
 	schemaMessages := convertToSchemaMessages(a.messages)
 	a.mu.RUnlock()
+	if len(schemaMessages) > 0 && modelUserContent != userQuestionForHistory {
+		schemaMessages[len(schemaMessages)-1].Content = modelUserContent
+	}
 
 	schemaMsg, err := a.model.GenerateResponse(ctx, schemaMessages)
 	if err != nil {
@@ -126,11 +134,19 @@ func (a *AIHelper) GenerateResponse(ctx context.Context, userQuestion string) (*
 }
 
 func (a *AIHelper) StreamResponse(ctx context.Context, cb StreamCallback, userQuestion string) (*apimodel.ChatMessage, error) {
-	a.AddMessage(userQuestion, true)
+	return a.StreamResponseWithModelContent(ctx, cb, userQuestion, userQuestion)
+}
+
+// StreamResponseWithModelContent is the streaming variant of GenerateResponseWithModelContent.
+func (a *AIHelper) StreamResponseWithModelContent(ctx context.Context, cb StreamCallback, userQuestionForHistory string, modelUserContent string) (*apimodel.ChatMessage, error) {
+	a.AddMessage(userQuestionForHistory, true)
 
 	a.mu.RLock()
 	schemaMessages := convertToSchemaMessages(a.messages)
 	a.mu.RUnlock()
+	if len(schemaMessages) > 0 && modelUserContent != userQuestionForHistory {
+		schemaMessages[len(schemaMessages)-1].Content = modelUserContent
+	}
 
 	content, err := a.model.StreamResponse(ctx, schemaMessages, cb)
 	if err != nil {

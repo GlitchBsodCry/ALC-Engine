@@ -14,21 +14,23 @@ import (
 )
 
 type ChatService struct {
-	manager  *ai.AIHelperManager
-	chatRepo repository.ChatRepository
+	manager        *ai.AIHelperManager
+	chatRepo       repository.ChatRepository
+	fileProcessor  *FileProcessor
 }
 
-func NewChatService(chatRepo repository.ChatRepository) (*ChatService, error) {
+func NewChatService(chatRepo repository.ChatRepository, fileProcessor *FileProcessor) (*ChatService, error) {
 	ctx := context.Background()
 	manager := ai.GetGlobalManager(ctx)
 
 	return &ChatService{
-		manager:  manager,
-		chatRepo: chatRepo,
+		manager:       manager,
+		chatRepo:      chatRepo,
+		fileProcessor: fileProcessor,
 	}, nil
 }
 
-func (s *ChatService) CreateChat(ctx context.Context, userID uint, question string) (string, string, error) {
+func (s *ChatService) CreateChat(ctx context.Context, userID uint, question, minioBucket, minioPrefix string) (string, string, error) {
 	sessionID := uuid.New().String()
 	session := &model.Session{
 		ID:        sessionID,
@@ -62,7 +64,8 @@ func (s *ChatService) CreateChat(ctx context.Context, userID uint, question stri
 	}
 	helper.SetMessageFunc(messageFunc)
 
-	resp, err := helper.GenerateResponse(ctx, question)
+	qModel := s.enrichQuestion(ctx, userID, minioBucket, minioPrefix, question)
+	resp, err := helper.GenerateResponseWithModelContent(ctx, question, qModel)
 	if err != nil {
 		return "", "", err
 	}
@@ -70,7 +73,14 @@ func (s *ChatService) CreateChat(ctx context.Context, userID uint, question stri
 	return sessionID, resp.Content, nil
 }
 
-func (s *ChatService) ContinueChat(ctx context.Context, userID uint, sessionID, question string) (string, error) {
+func (s *ChatService) enrichQuestion(ctx context.Context, userID uint, minioBucket, minioPrefix, question string) string {
+	if s.fileProcessor == nil || minioBucket == "" {
+		return question
+	}
+	return s.fileProcessor.EnrichChatQuestion(ctx, userID, minioBucket, minioPrefix, question)
+}
+
+func (s *ChatService) ContinueChat(ctx context.Context, userID uint, sessionID, question string, minioBucket, minioPrefix string) (string, error) {
 	session, err := s.chatRepo.GetSession(ctx, sessionID)
 	if err != nil {
 		return "", err
@@ -110,7 +120,8 @@ func (s *ChatService) ContinueChat(ctx context.Context, userID uint, sessionID, 
 	}
 	helper.SetMessageFunc(messageFunc)
 
-	resp, err := helper.GenerateResponse(ctx, question)
+	qModel := s.enrichQuestion(ctx, userID, minioBucket, minioPrefix, question)
+	resp, err := helper.GenerateResponseWithModelContent(ctx, question, qModel)
 	if err != nil {
 		return "", err
 	}
@@ -135,7 +146,7 @@ func (s *ChatService) GetUserSessions(ctx context.Context, userID uint) ([]model
 	return result, nil
 }
 
-func (s *ChatService) StreamChat(ctx context.Context, userID uint, question string, callback func(string)) (string, error) {
+func (s *ChatService) StreamChat(ctx context.Context, userID uint, question string, minioBucket, minioPrefix string, callback func(string)) (string, error) {
 	sessionID := uuid.New().String()
 	session := &model.Session{
 		ID:        sessionID,
@@ -175,7 +186,8 @@ func (s *ChatService) StreamChat(ctx context.Context, userID uint, question stri
 		callback(chunk)
 	}
 
-	_, err = helper.StreamResponse(ctx, wrappedCallback, question)
+	qModel := s.enrichQuestion(ctx, userID, minioBucket, minioPrefix, question)
+	_, err = helper.StreamResponseWithModelContent(ctx, wrappedCallback, question, qModel)
 	if err != nil {
 		return "", err
 	}
@@ -183,7 +195,7 @@ func (s *ChatService) StreamChat(ctx context.Context, userID uint, question stri
 	return sessionID, nil
 }
 
-func (s *ChatService) StreamContinueChat(ctx context.Context, userID uint, sessionID, question string, callback func(string)) error {
+func (s *ChatService) StreamContinueChat(ctx context.Context, userID uint, sessionID, question string, minioBucket, minioPrefix string, callback func(string)) error {
 	session, err := s.chatRepo.GetSession(ctx, sessionID)
 	if err != nil {
 		return err
@@ -229,7 +241,8 @@ func (s *ChatService) StreamContinueChat(ctx context.Context, userID uint, sessi
 		callback(chunk)
 	}
 
-	_, err = helper.StreamResponse(ctx, wrappedCallback, question)
+	qModel := s.enrichQuestion(ctx, userID, minioBucket, minioPrefix, question)
+	_, err = helper.StreamResponseWithModelContent(ctx, wrappedCallback, question, qModel)
 	if err != nil {
 		return err
 	}
