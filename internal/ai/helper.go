@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	apimodel "mygo_bangforai/api/model"
-	"mygo_bangforai/internal/rabbitmq"
 	"mygo_bangforai/pkg/logger"
 
 	"github.com/cloudwego/eino/schema"
@@ -14,26 +13,40 @@ import (
 
 type SaveCallback func(*apimodel.ChatMessage) (*apimodel.ChatMessage, error)
 
+type MessageCallback func(sessionID, content string, isUser bool) error
+
 type AIHelper struct {
-	model     AIModel
-	messages  []*apimodel.ChatMessage
-	mu        sync.RWMutex
-	SessionID string
-	saveFunc  SaveCallback
+	model       AIModel
+	messages    []*apimodel.ChatMessage
+	mu          sync.RWMutex
+	SessionID   string
+	UserID      uint
+	saveFunc    SaveCallback
+	messageFunc MessageCallback
 }
 
 func NewAIHelper(model AIModel, sessionID string) *AIHelper {
 	return &AIHelper{
-		model:     model,
-		messages:  make([]*apimodel.ChatMessage, 0),
-		saveFunc:  nil,
-		SessionID: sessionID,
+		model:       model,
+		messages:    make([]*apimodel.ChatMessage, 0),
+		saveFunc:    nil,
+		messageFunc: nil,
+		SessionID:   sessionID,
 	}
 }
 
+func (a *AIHelper) SetUserID(id uint) {
+	a.mu.Lock()
+	a.UserID = id
+	a.mu.Unlock()
+}
+
 func (a *AIHelper) AddMessage(content string, isUser bool) {
+	mt := a.model.GetModelType()
 	msg := &apimodel.ChatMessage{
 		SessionID: a.SessionID,
+		UserID:    a.UserID,
+		ModelType: mt,
 		Content:   content,
 		IsUser:    isUser,
 	}
@@ -42,18 +55,20 @@ func (a *AIHelper) AddMessage(content string, isUser bool) {
 		a.saveFunc(msg)
 	}
 
-	// 发送到RabbitMQ
-	mqMsg := rabbitmq.GenerateMessageMQParam(a.SessionID, content, "", isUser)
-	rmq := rabbitmq.GetRabbitMQ()
-	if rmq != nil {
-		if err := rmq.Publish(mqMsg); err != nil {
-			logger.Error("Failed to publish message to RabbitMQ", zap.Error(err))
+	// 通过回调函数处理消息（如发送到RabbitMQ）
+	if a.messageFunc != nil {
+		if err := a.messageFunc(a.SessionID, content, isUser); err != nil {
+			logger.Error("Failed to process message callback", zap.Error(err))
 		}
 	}
 }
 
 func (a *AIHelper) SetSaveFunc(saveFunc SaveCallback) {
 	a.saveFunc = saveFunc
+}
+
+func (a *AIHelper) SetMessageFunc(messageFunc MessageCallback) {
+	a.messageFunc = messageFunc
 }
 
 func (a *AIHelper) GetMessages() []*apimodel.ChatMessage {
@@ -99,6 +114,8 @@ func (a *AIHelper) GenerateResponse(ctx context.Context, userQuestion string) (*
 
 	modelMsg := &apimodel.ChatMessage{
 		SessionID: a.SessionID,
+		UserID:    a.UserID,
+		ModelType: a.model.GetModelType(),
 		Content:   schemaMsg.Content,
 		IsUser:    false,
 	}
@@ -123,6 +140,8 @@ func (a *AIHelper) StreamResponse(ctx context.Context, cb StreamCallback, userQu
 
 	modelMsg := &apimodel.ChatMessage{
 		SessionID: a.SessionID,
+		UserID:    a.UserID,
+		ModelType: a.model.GetModelType(),
 		Content:   content,
 		IsUser:    false,
 	}

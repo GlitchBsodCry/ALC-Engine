@@ -23,6 +23,10 @@ func NewAIHelperManager(ctx context.Context) *AIHelperManager {
 }
 
 func (m *AIHelperManager) GetOrCreateAIHelper(sessionID string) (*AIHelper, error) {
+	return m.GetOrCreateAIHelperWithModel(sessionID, ModelTypeSiliconflow, nil)
+}
+
+func (m *AIHelperManager) GetOrCreateAIHelperWithModel(sessionID string, modelType string, cfg map[string]interface{}) (*AIHelper, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -37,9 +41,10 @@ func (m *AIHelperManager) GetOrCreateAIHelper(sessionID string) (*AIHelper, erro
 		return helper, nil
 	}
 
-	model, err := NewSiliconFlowModel(m.ctx)
+	factory := GetGlobalFactory()
+	model, err := factory.CreateAIModel(m.ctx, modelType, cfg)
 	if err != nil {
-		logger.Error("创建AI模型失败", zap.Error(err), zap.String("sessionID", sessionID))
+		logger.Error("创建AI模型失败", zap.Error(err), zap.String("sessionID", sessionID), zap.String("modelType", modelType))
 		return nil, err
 	}
 

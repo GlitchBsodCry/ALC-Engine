@@ -111,9 +111,6 @@ func (s *CloudFileService) VerifyUpload(ctx context.Context, bucket string, key 
 		zap.String("etag", objInfo.ETag),
 		zap.String("content_type", objInfo.ContentType))
 	
-	// TODO: 验证哈希值（需要客户端上传时提供，或从ETag推断）
-	// 当前版本暂时不验证哈希，后续可以添加
-	
 	return true, &objInfo, nil
 }
 

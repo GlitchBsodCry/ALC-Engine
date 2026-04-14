@@ -138,16 +138,17 @@ func main() {
 
 	// 初始化新的文件服务
 	newRealFileRepo := repository.NewNewRealFileRepository(config.GetPostgresDB())
+	newCloudFileRepo := repository.NewNewCloudFileRepository(config.GetPostgresDB())
+	newCloudFileLocalRepo := repository.NewNewCloudFileLocalRepository(config.GetPostgresDB())
 	newFileService := service.NewNewFileService(
 		newRealFileRepo,
+		newCloudFileRepo,
 		mountRelationService,
-		repos.CloudFileLocal,
+		newCloudFileLocalRepo,
 	)
 	control.InitNewFileService(newFileService)
 
 	// 初始化云文件服务
-	newCloudFileRepo := repository.NewNewCloudFileRepository(config.GetPostgresDB())
-	newCloudFileLocalRepo := repository.NewNewCloudFileLocalRepository(config.GetPostgresDB())
 	cloudFileService := service.NewCloudFileService(
 		newRealFileRepo,
 		newCloudFileRepo,

@@ -2,6 +2,7 @@ package control
 
 import (
 	"mygo_bangforai/api/errors"
+	"mygo_bangforai/api/model"
 	"mygo_bangforai/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -31,10 +32,10 @@ func LoginFileHandler(c *gin.Context) {
 	userID := c.GetUint("user_id")
 	ctx := c.Request.Context()
 
-	// 转换为 service.FileInfo
-	var fileInfos []service.FileInfo
+	// 转换为 model.RealFileInfo
+	var fileInfos []model.RealFileInfo
 	for _, file := range req.Files {
-		fileInfos = append(fileInfos, service.FileInfo{
+		fileInfos = append(fileInfos, model.RealFileInfo{
 			Name: file.Name,
 			Path: file.Path,
 			Hash: file.Hash,

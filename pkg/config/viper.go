@@ -107,6 +107,24 @@ func GetAIConfig() model.AI {
 	return model.AppConfig.AI
 }
 
+func GetRagModelConfig() model.RagModel {
+	r := model.AppConfig.RagModel
+	ai := model.AppConfig.AI
+	if r.RagBaseURL == "" {
+		r.RagBaseURL = ai.BaseURL
+	}
+	if r.RagChatModelName == "" {
+		r.RagChatModelName = ai.ModelName
+	}
+	if r.RagEmbeddingModel == "" {
+		r.RagEmbeddingModel = ai.ModelName
+	}
+	if r.RagDimension <= 0 {
+		r.RagDimension = 1024
+	}
+	return r
+}
+
 func GetRabbitMQConfig() model.RabbitMQ {
 	if model.AppConfig.RabbitMQ.Host == "" {
 		model.AppConfig.RabbitMQ = model.RabbitMQ{

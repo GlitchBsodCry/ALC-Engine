@@ -3,6 +3,7 @@ package control
 import (
 	"fmt"
 	"mygo_bangforai/api/errors"
+	"mygo_bangforai/api/model"
 	"mygo_bangforai/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -40,7 +41,7 @@ func GetUploadURLHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 
 	// 转换为service请求
-	serviceReq := &service.PrepareUploadRequest{
+	serviceReq := &model.PrepareUploadRequest{
 		NewRealFileID: req.NewRealFileID,
 		ProjectID:     req.ProjectID,
 		RootID:        req.RootID,
@@ -131,7 +132,7 @@ func GetUploadURLAfterApprovalHandler(c *gin.Context) {
 // CompleteUploadHandler 完成文件上传
 // POST /file/cloud/upload
 func CompleteUploadHandler(c *gin.Context) {
-	var req service.CompleteUploadRequest
+	var req model.CompleteUploadRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		errors.ParamError(c, err.Error())
@@ -277,7 +278,7 @@ func GetCloudFileApprovalStatusHandler(c *gin.Context) {
 // SyncCloudFileHandler 同步云文件到本地
 // POST /file/cloud/sync
 func SyncCloudFileHandler(c *gin.Context) {
-	var req service.SyncCloudFileRequest
+	var req model.SyncCloudFileRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
 		errors.ParamError(c, err.Error())

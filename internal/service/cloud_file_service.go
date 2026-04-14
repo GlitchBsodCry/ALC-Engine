@@ -54,33 +54,14 @@ func (s *CloudFileService) SetApprovalService(approvalService *CloudFileApproval
 	s.approvalService = approvalService
 }
 
-// PrepareUploadRequest 准备上传请求参数
-type PrepareUploadRequest struct {
-	NewRealFileID uint   `json:"new_real_file_id" binding:"required"`
-	ProjectID     uint   `json:"project_id" binding:"required"`
-	RootID        uint   `json:"root_id" binding:"required"`
-	Filename      string `json:"filename" binding:"required"`
-	FileHash      string `json:"file_hash" binding:"required"`
-}
-
-// PrepareUploadResponse 准备上传响应
-type PrepareUploadResponse struct {
-	PresignedURL   string `json:"presigned_url"`
-	Key            string `json:"key"`
-	Bucket         string `json:"bucket"`
-	Expiry         int64  `json:"expiry"`
-	ApprovalID     uint   `json:"approval_id,omitempty"`     // 审批项ID
-	ApprovalStatus string `json:"approval_status,omitempty"` // 审批状态
-}
-
 // PrepareUpload 准备文件上传
 // 1. 验证文件存在且属于当前用户
 // 2. 检查审批状态（如果启用审批机制）
 // 3. 如果未审批，创建审批项并返回等待审批
-// 4. 如果已批准，生成预签名URL和存储信息
-func (s *CloudFileService) PrepareUpload(ctx context.Context, userID uint, req *PrepareUploadRequest, username string) (*PrepareUploadResponse, error) {
+// 4. 如果已批准，生成预签名URL和存
+func (s *CloudFileService) PrepareUpload(ctx context.Context, userID uint, req *model.PrepareUploadRequest, username string) (*model.PrepareUploadResponse, error) {
 	// 1. 验证NewRealFile存在且属于当前用户
-	realFile, err := s.newRealFileRepo.GetByID(ctx, req.NewRealFileID)
+	_, err := s.newRealFileRepo.GetByID(ctx, req.NewRealFileID)
 	if err != nil {
 		s.logger.Error("获取NewRealFile失败",
 			zap.Uint("new_real_file_id", req.NewRealFileID),
@@ -88,24 +69,10 @@ func (s *CloudFileService) PrepareUpload(ctx context.Context, userID uint, req *
 		return nil, errors.WrapError(err, errors.NotFound, "文件不存在", "internal/service/cloud_file_service.PrepareUpload")
 	}
 
-	// 检查文件是否属于当前用户（登记用户）
-	if realFile.UserID != userID {
-		s.logger.Warn("用户尝试上传非自己的文件",
-			zap.Uint("user_id", userID),
-			zap.Uint("file_user_id", realFile.UserID))
-		return nil, errors.NewError(errors.PermissionDenied, "只能上传自己登记的文件", "internal/service/cloud_file_service.PrepareUpload")
-	}
+	// 移除文件主人检查，允许任何人上传
+	// 文件的逻辑属性仅与挂载的虚拟文件夹相关，不在上传阶段检查项目归属
 
-	// 2. 验证文件是否已挂载到项目的虚拟文件夹
-	// 检查是否存在挂载关系：文件 -> 项目虚拟文件夹
-	// 这里简化：检查文件是否有挂载到指定根目录的虚拟文件夹
-	// 实际应检查具体的挂载关系，暂时先跳过详细检查
-	s.logger.Debug("挂载关系检查跳过，待实现",
-		zap.Uint("new_real_file_id", req.NewRealFileID),
-		zap.Uint("project_id", req.ProjectID),
-		zap.Uint("root_id", req.RootID))
-
-	// 3. 检查是否已有云文件记录（避免重复上传）
+	// 2. 检查是否已有云文件记录（支持更新操作，MinIO会自动覆盖）
 	exists, err := s.newCloudFileRepo.ExistsByNewRealFileID(ctx, req.NewRealFileID)
 	if err != nil {
 		s.logger.Error("检查云文件记录失败",
@@ -115,9 +82,9 @@ func (s *CloudFileService) PrepareUpload(ctx context.Context, userID uint, req *
 	}
 
 	if exists {
-		s.logger.Warn("文件已存在云文件记录",
+		s.logger.Info("文件已存在云文件记录，将进行更新（MinIO会自动覆盖）",
 			zap.Uint("new_real_file_id", req.NewRealFileID))
-		return nil, errors.NewError(errors.InternalError, "文件已上传到云端", "internal/service/cloud_file_service.PrepareUpload")
+		// MinIO会自动覆盖同名文件，继续执行
 	}
 
 	// 4. 检查审批状态（启用审批机制）
@@ -147,7 +114,7 @@ func (s *CloudFileService) PrepareUpload(ctx context.Context, userID uint, req *
 				zap.Uint("user_id", userID),
 				zap.Uint("new_real_file_id", req.NewRealFileID),
 				zap.Uint("approval_id", existingApproval.ID))
-			return &PrepareUploadResponse{
+			return &model.PrepareUploadResponse{
 				ApprovalID:     existingApproval.ID,
 				ApprovalStatus: string(model.CloudFileApprovalWaiting),
 			}, nil
@@ -164,7 +131,7 @@ func (s *CloudFileService) PrepareUpload(ctx context.Context, userID uint, req *
 			zap.Uint("approval_id", approvalID),
 			zap.Uint("user_id", userID),
 			zap.Uint("new_real_file_id", req.NewRealFileID))
-		return &PrepareUploadResponse{
+		return &model.PrepareUploadResponse{
 			ApprovalID:     approvalID,
 			ApprovalStatus: string(model.CloudFileApprovalWaiting),
 		}, nil
@@ -194,7 +161,7 @@ func (s *CloudFileService) PrepareUpload(ctx context.Context, userID uint, req *
 		zap.String("bucket", uploadInfo.Bucket),
 		zap.String("key", uploadInfo.Key))
 
-	return &PrepareUploadResponse{
+	return &model.PrepareUploadResponse{
 		PresignedURL: uploadInfo.PresignedURL,
 		Key:          uploadInfo.Key,
 		Bucket:       uploadInfo.Bucket,
@@ -202,14 +169,9 @@ func (s *CloudFileService) PrepareUpload(ctx context.Context, userID uint, req *
 	}, nil
 }
 
-// GetUploadURLAfterApprovalRequest 获取审批通过后的上传URL请求
-type GetUploadURLAfterApprovalRequest struct {
-	ApprovalID uint `json:"approval_id" binding:"required"`
-}
-
 // GetUploadURLAfterApproval 获取审批通过后的上传URL
 // 当审批通过后，客户端调用此接口获取上传预签名URL
-func (s *CloudFileService) GetUploadURLAfterApproval(ctx context.Context, userID uint, approvalID uint) (*PrepareUploadResponse, error) {
+func (s *CloudFileService) GetUploadURLAfterApproval(ctx context.Context, userID uint, approvalID uint) (*model.PrepareUploadResponse, error) {
 	// 检查审批服务是否可用
 	if s.approvalService == nil {
 		return nil, errors.NewError(errors.InternalError, "审批服务未初始化", "internal/service/cloud_file_service.GetUploadURLAfterApproval")
@@ -232,12 +194,12 @@ func (s *CloudFileService) GetUploadURLAfterApproval(ctx context.Context, userID
 	// 检查审批状态
 	switch approval.Status {
 	case model.CloudFileApprovalWaiting:
-		return &PrepareUploadResponse{
+		return &model.PrepareUploadResponse{
 			ApprovalID:     approval.ID,
 			ApprovalStatus: string(model.CloudFileApprovalWaiting),
 		}, nil
 	case model.CloudFileApprovalRefused:
-		return &PrepareUploadResponse{
+		return &model.PrepareUploadResponse{
 			ApprovalID:     approval.ID,
 			ApprovalStatus: string(model.CloudFileApprovalRefused),
 		}, nil
@@ -250,7 +212,7 @@ func (s *CloudFileService) GetUploadURLAfterApproval(ctx context.Context, userID
 		return nil, errors.NewError(errors.InternalError, "未知审批状态", "internal/service/cloud_file_service.GetUploadURLAfterApproval")
 	}
 
-	// 检查是否已有云文件记录（避免重复上传）
+	// 检查是否已有云文件记录（支持更新操作，MinIO会自动覆盖）
 	exists, err := s.newCloudFileRepo.ExistsByNewRealFileID(ctx, approval.NewRealFileID)
 	if err != nil {
 		s.logger.Error("检查云文件记录失败",
@@ -260,9 +222,9 @@ func (s *CloudFileService) GetUploadURLAfterApproval(ctx context.Context, userID
 	}
 
 	if exists {
-		s.logger.Warn("文件已存在云文件记录",
+		s.logger.Info("文件已存在云文件记录，将进行更新（MinIO会自动覆盖）",
 			zap.Uint("new_real_file_id", approval.NewRealFileID))
-		return nil, errors.NewError(errors.InternalError, "文件已上传到云端", "internal/service/cloud_file_service.GetUploadURLAfterApproval")
+		// MinIO会自动覆盖同名文件，继续执行
 	}
 
 	// 准备MinIO上传
@@ -288,7 +250,7 @@ func (s *CloudFileService) GetUploadURLAfterApproval(ctx context.Context, userID
 		zap.String("bucket", uploadInfo.Bucket),
 		zap.String("key", uploadInfo.Key))
 
-	return &PrepareUploadResponse{
+	return &model.PrepareUploadResponse{
 		PresignedURL:   uploadInfo.PresignedURL,
 		Key:            uploadInfo.Key,
 		Bucket:         uploadInfo.Bucket,
@@ -298,29 +260,11 @@ func (s *CloudFileService) GetUploadURLAfterApproval(ctx context.Context, userID
 	}, nil
 }
 
-// CompleteUploadRequest 完成上传请求参数
-type CompleteUploadRequest struct {
-	NewRealFileID uint   `json:"new_real_file_id" binding:"required"`
-	ProjectID     uint   `json:"project_id" binding:"required"`
-	RootID        uint   `json:"root_id" binding:"required"`
-	Filename      string `json:"filename" binding:"required"`
-	FileHash      string `json:"file_hash" binding:"required"`
-	Bucket        string `json:"bucket" binding:"required"`
-	Key           string `json:"key" binding:"required"`
-}
-
-// SyncCloudFileRequest 同步云文件请求参数
-type SyncCloudFileRequest struct {
-	CloudFileID uint   `json:"cloud_file_id" binding:"required"`
-	LocalPath   string `json:"local_path" binding:"required"`
-	ETag        string `json:"e_tag" binding:"required"`
-}
-
 // CompleteUpload 完成文件上传
 // 1. 验证上传是否成功（检查MinIO对象）
 // 2. 创建NewCloudFile记录
 // 3. 可选：创建上传者的NewCloudFileLocal记录
-func (s *CloudFileService) CompleteUpload(ctx context.Context, userID uint, req *CompleteUploadRequest) (*model.NewCloudFile, error) {
+func (s *CloudFileService) CompleteUpload(ctx context.Context, userID uint, req *model.CompleteUploadRequest) (*model.NewCloudFile, error) {
 	// 1. 验证NewRealFile存在且属于当前用户
 	realFile, err := s.newRealFileRepo.GetByID(ctx, req.NewRealFileID)
 	if err != nil {
@@ -330,12 +274,7 @@ func (s *CloudFileService) CompleteUpload(ctx context.Context, userID uint, req 
 		return nil, errors.WrapError(err, errors.NotFound, "文件不存在", "internal/service/cloud_file_service.CompleteUpload")
 	}
 
-	if realFile.UserID != userID {
-		s.logger.Warn("用户尝试完成非自己文件的上传",
-			zap.Uint("user_id", userID),
-			zap.Uint("file_user_id", realFile.UserID))
-		return nil, errors.NewError(errors.PermissionDenied, "只能完成自己文件的上传", "internal/service/cloud_file_service.CompleteUpload")
-	}
+	// 移除文件主人检查，允许任何人完成上传
 
 	// 2. 验证MinIO上传是否成功
 	if s.minioService == nil {
@@ -359,7 +298,7 @@ func (s *CloudFileService) CompleteUpload(ctx context.Context, userID uint, req 
 		return nil, errors.NewError(errors.NotFound, "文件未上传成功，请重新上传", "internal/service/cloud_file_service.CompleteUpload")
 	}
 
-	// 3. 检查是否已有云文件记录（防止重复提交）
+	// 3. 检查是否已有云文件记录（支持更新操作，MinIO会自动覆盖）
 	exists, err := s.newCloudFileRepo.ExistsByNewRealFileID(ctx, req.NewRealFileID)
 	if err != nil {
 		s.logger.Error("检查云文件记录失败",
@@ -368,18 +307,18 @@ func (s *CloudFileService) CompleteUpload(ctx context.Context, userID uint, req 
 		return nil, errors.WrapError(err, errors.InternalError, "系统错误", "internal/service/cloud_file_service.CompleteUpload")
 	}
 
+	var existingCloudFile *model.NewCloudFile
 	if exists {
-		s.logger.Warn("云文件记录已存在",
+		s.logger.Info("云文件记录已存在，将进行更新（MinIO会自动覆盖）",
 			zap.Uint("new_real_file_id", req.NewRealFileID))
-		// 如果已存在，返回现有记录
-		existingCloudFile, err := s.newCloudFileRepo.GetByNewRealFileID(ctx, req.NewRealFileID)
+		// 获取现有记录用于更新
+		existingCloudFile, err = s.newCloudFileRepo.GetByNewRealFileID(ctx, req.NewRealFileID)
 		if err != nil {
 			return nil, err
 		}
-		return existingCloudFile, nil
 	}
 
-	// 4. 创建NewCloudFile记录
+	// 4. 创建或更新NewCloudFile记录
 	cloudFile := s.minioService.CreateCloudFileRecord(
 		objInfo,
 		req.Bucket,
@@ -390,7 +329,13 @@ func (s *CloudFileService) CompleteUpload(ctx context.Context, userID uint, req 
 		req.FileHash,
 	)
 
-	err = s.newCloudFileRepo.Create(ctx, cloudFile)
+	// 如果已存在记录，使用现有ID进行更新
+	if existingCloudFile != nil {
+		cloudFile.ID = existingCloudFile.ID
+		err = s.newCloudFileRepo.Update(ctx, cloudFile)
+	} else {
+		err = s.newCloudFileRepo.Create(ctx, cloudFile)
+	}
 	if err != nil {
 		s.logger.Error("创建云文件记录失败",
 			zap.Uint("new_real_file_id", req.NewRealFileID),
@@ -440,9 +385,6 @@ func (s *CloudFileService) GetDownloadURL(ctx context.Context, userID uint, clou
 		return "", errors.WrapError(err, errors.NotFound, "云文件不存在", "internal/service/cloud_file_service.GetDownloadURL")
 	}
 
-	// TODO: 检查用户是否有权限下载（项目成员）
-	// 当前版本简化：允许下载
-
 	if s.minioService == nil {
 		s.logger.Error("MinIO服务未初始化")
 		return "", errors.NewError(errors.InternalError, "云存储服务不可用", "internal/service/cloud_file_service.GetDownloadURL")
@@ -468,7 +410,7 @@ func (s *CloudFileService) GetDownloadURL(ctx context.Context, userID uint, clou
 
 // SyncCloudFile 同步云文件到本地
 // 客户端下载完成后，验证ETag并创建/更新NewCloudFileLocal记录
-func (s *CloudFileService) SyncCloudFile(ctx context.Context, userID uint, req *SyncCloudFileRequest) error {
+func (s *CloudFileService) SyncCloudFile(ctx context.Context, userID uint, req *model.SyncCloudFileRequest) error {
 	// 1. 获取云文件记录
 	cloudFile, err := s.newCloudFileRepo.GetByID(ctx, req.CloudFileID)
 	if err != nil {
@@ -477,9 +419,6 @@ func (s *CloudFileService) SyncCloudFile(ctx context.Context, userID uint, req *
 			zap.Error(err))
 		return errors.WrapError(err, errors.NotFound, "云文件不存在", "internal/service/cloud_file_service.SyncCloudFile")
 	}
-
-	// 2. TODO: 验证用户权限（项目成员检查）
-	// 当前版本简化，暂时跳过详细权限检查
 
 	// 3. 验证MinIO对象存在并获取ETag
 	if s.minioService == nil {

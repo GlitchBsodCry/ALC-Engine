@@ -25,6 +25,7 @@ type Repositories struct {
 	ApprovalRedis          ApprovalRedisRepository
 	ApprovalPG             ApprovalPGRepository
 	CloudFileApprovalRedis CloudFileApprovalRedisRepository
+	AISession              AISessionRepository
 	Test                   *TestRepository
 }
 
@@ -53,6 +54,7 @@ func NewRepositories(mysqlDB *gorm.DB, postgresDB *gorm.DB, rdb *redis.Client) *
 		ApprovalRedis:          NewApprovalRedisRepository(rdb),
 		ApprovalPG:             NewApprovalPGRepository(postgresDB, vf, vr, mr),
 		CloudFileApprovalRedis: NewCloudFileApprovalRedisRepository(rdb),
+		AISession:              NewAISessionRepository(mysqlDB),
 		Test:                   NewTestRepository(postgresDB),
 	}
 }

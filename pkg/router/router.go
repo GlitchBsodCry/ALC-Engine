@@ -99,7 +99,7 @@ func SetupRouter() (*gin.Engine, error) {
 		rprojectSpecific.POST("/files/mount", middleware.ProjectAuthMiddleware("member"), control.NewMountHandler)
 		rprojectSpecific.DELETE("/files/unmount", middleware.ProjectAuthMiddleware("member"), control.DeleteMountHandler)
 		rprojectSpecific.DELETE("/files/logout", middleware.ProjectAuthMiddleware("member"), control.LogoutFileHandler)
-		rprojectSpecific.PUT("/files/rename", middleware.ProjectAuthMiddleware("member"), control.NewRenameHandler)
+		rprojectSpecific.PUT("/files/rename", middleware.ProjectAuthMiddleware("admin"), control.NewRenameHandler)
 
 		// 实时事件订阅
 		rprojectSpecific.GET("/events", middleware.ProjectAuthMiddleware("viewer"), control.GetProjectEvents)

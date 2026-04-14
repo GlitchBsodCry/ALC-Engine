@@ -6,6 +6,14 @@ import (
 	"github.com/cloudwego/eino/schema"
 )
 
+const (
+	ModelTypeSiliconflow = "siliconflow"
+	ModelTypeOpenAI      = "openai"
+	ModelTypeRAG         = "rag"
+	ModelTypeMCP         = "mcp"
+	ModelTypeOllama      = "ollama"
+)
+
 type StreamCallback func(msg string)
 
 type AIModel interface {

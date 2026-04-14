@@ -13,6 +13,7 @@ type Config struct {
 	RateLimit  RateLimit  `mapstructure:"rate_limit"`
 	APIKey     APIKey     `mapstructure:"api_key"`
 	AI         AI         `mapstructure:"ai"`
+	RagModel   RagModel   `mapstructure:"rag_model"`
 	RabbitMQ   RabbitMQ   `mapstructure:"rabbitmq"`
 	MinIO      MinIO      `mapstructure:"minio"`
 }
@@ -81,10 +82,17 @@ type APIKey struct {
 }
 
 type AI struct {
-	Provider  string `mapstructure:"provider"`   // AI provider: siliconflow, openai, ollama
-	ModelName string `mapstructure:"model_name"` // 模型名称
-	BaseURL   string `mapstructure:"base_url"`   // API地址
-	APIKey    string `mapstructure:"api_key"`    // API Key
+	Provider  string `mapstructure:"provider"`
+	ModelName string `mapstructure:"model_name"`
+	BaseURL   string `mapstructure:"base_url"`
+	APIKey    string `mapstructure:"api_key"`
+}
+
+type RagModel struct {
+	RagBaseURL        string `mapstructure:"rag_base_url"`
+	RagChatModelName  string `mapstructure:"rag_chat_model_name"`
+	RagEmbeddingModel string `mapstructure:"rag_embedding_model"`
+	RagDimension      int    `mapstructure:"rag_dimension"`
 }
 
 type RabbitMQ struct {

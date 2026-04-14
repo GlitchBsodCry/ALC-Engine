@@ -28,7 +28,7 @@ func NewCloudFileApprovalService(
 }
 
 // CreateApproval 创建云文件上传审批项
-func (s *CloudFileApprovalService) CreateApproval(ctx context.Context, userID uint, username string, req *PrepareUploadRequest) (uint, error) {
+func (s *CloudFileApprovalService) CreateApproval(ctx context.Context, userID uint, username string, req *model.PrepareUploadRequest) (uint, error) {
 	approval := &model.CloudFileApproval{
 		UserID:        userID,
 		Username:      username,

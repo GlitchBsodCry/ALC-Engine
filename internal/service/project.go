@@ -221,7 +221,7 @@ func (s *ProjectService) CheckUserProjectRole(ctx context.Context, projectID, us
 }
 
 // SubmitChangeService 提交变更请求服务
-func (s *ProjectService) SubmitChangeService(ctx context.Context, userID uint, username string, projectID uint, operations model.Operations) (*ConflictResult, error) {
+func (s *ProjectService) SubmitChangeService(ctx context.Context, userID uint, username string, projectID uint, operations model.Operations) (*model.ConflictResult, error) {
 	// 检查是否有冲突
 	conflictResult, err := s.CheckConflict(ctx, projectID, userID, operations)
 	if err != nil {
@@ -251,13 +251,7 @@ func (s *ProjectService) SubmitChangeService(ctx context.Context, userID uint, u
 		zap.Int("rename_operations", len(operations.Rename)),
 		zap.Int("delete_operations", len(operations.Delete)))
 
-	return &ConflictResult{HasConflict: false}, nil
-}
-
-// ConflictResult 冲突检查结果
-type ConflictResult struct {
-	HasConflict     bool   `json:"has_conflict"`
-	ConflictFolders []uint `json:"conflict_folders"`
+	return &model.ConflictResult{HasConflict: false}, nil
 }
 
 // GetPendingChangesByProjectID 获取项目下所有待审批的变更请求
@@ -313,7 +307,7 @@ func (s *ProjectService) GetPendingChangesByProjectID(ctx context.Context, proje
 // 2. 同一个虚拟文件夹被一个member执行删除，另一个执行任意操作
 // 3. 一个虚拟文件夹被删除，但创建或者移动操作使得其新拥有子文件夹
 // 注意：支持临时ID引用，同一批次内的临时ID操作不视为冲突
-func (s *ProjectService) CheckConflict(ctx context.Context, projectID uint, userID uint, operations model.Operations) (*ConflictResult, error) {
+func (s *ProjectService) CheckConflict(ctx context.Context, projectID uint, userID uint, operations model.Operations) (*model.ConflictResult, error) {
 	// 获取项目中其他用户待审批的变更请求
 	pendingChanges, err := s.ChangeRequestRepo.GetPendingChangesByProjectID(ctx, projectID, userID)
 	if err != nil {
@@ -507,7 +501,7 @@ func (s *ProjectService) CheckConflict(ctx context.Context, projectID uint, user
 		conflictFolders = append(conflictFolders, folderID)
 	}
 
-	return &ConflictResult{
+	return &model.ConflictResult{
 		HasConflict:     len(conflictFolders) > 0,
 		ConflictFolders: conflictFolders,
 	}, nil

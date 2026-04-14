@@ -17,20 +17,14 @@ import (
 )
 
 type PreStorageCoroutine struct {
-	changeReq     repository.ChangeRequestRepository
-	approvalRedis repository.ApprovalRedisRepository
-	pubsubRedis   *redis.Client
-	stateRegistry sync.Map
-	logger        *zap.Logger
-	shutdownChan  chan struct{}
-	wg            sync.WaitGroup
-	pendingUpdatesChan chan *PendingUpdateEvent
-}
-
-// PendingUpdateEvent 待处理更新事件
-type PendingUpdateEvent struct {
-	UserID    uint
-	ProjectID uint
+	changeReq          repository.ChangeRequestRepository
+	approvalRedis      repository.ApprovalRedisRepository
+	pubsubRedis        *redis.Client
+	stateRegistry      sync.Map
+	logger             *zap.Logger
+	shutdownChan       chan struct{}
+	wg                 sync.WaitGroup
+	pendingUpdatesChan chan *model.PendingUpdateEvent
 }
 
 func NewPreStorageCoroutine(changeReq repository.ChangeRequestRepository, approvalRedis repository.ApprovalRedisRepository) *PreStorageCoroutine {
@@ -40,7 +34,7 @@ func NewPreStorageCoroutine(changeReq repository.ChangeRequestRepository, approv
 		pubsubRedis:        config.GetRedisClient(),
 		logger:             zap.L(),
 		shutdownChan:       make(chan struct{}),
-		pendingUpdatesChan: make(chan *PendingUpdateEvent, 100),
+		pendingUpdatesChan: make(chan *model.PendingUpdateEvent, 100),
 	}
 }
 
@@ -81,7 +75,7 @@ func (ps *PreStorageCoroutine) Stop() {
 // 变更请求提交成功后调用此方法，实现被动通知模式
 func (ps *PreStorageCoroutine) NotifyPendingUpdate(userID, projectID uint) {
 	select {
-	case ps.pendingUpdatesChan <- &PendingUpdateEvent{
+	case ps.pendingUpdatesChan <- &model.PendingUpdateEvent{
 		UserID:    userID,
 		ProjectID: projectID,
 	}:
@@ -327,7 +321,7 @@ func (ps *PreStorageCoroutine) listenKeyspaceNotifications(ctx context.Context) 
 
 				if ps.isWaitingStatus(ctx, userID) {
 					select {
-					case ps.pendingUpdatesChan <- &PendingUpdateEvent{
+					case ps.pendingUpdatesChan <- &model.PendingUpdateEvent{
 						UserID:    userID,
 						ProjectID: uint(projectID),
 					}:

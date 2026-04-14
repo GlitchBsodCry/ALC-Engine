@@ -14,16 +14,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// ApprovalState 审批状态记录
-type ApprovalState struct {
-	UserID         uint
-	ProjectID      uint
-	ApprovalRecv   bool
-	PreStorageRecv bool
-	Approved       bool
-	PreStorageDone bool
-}
-
 type ApprovalCoordinator struct {
 	changeReq         repository.ChangeRequestRepository
 	approvalRedis     repository.ApprovalRedisRepository
@@ -231,14 +221,14 @@ func (ac *ApprovalCoordinator) handlePreStorageMessage(msg *model.ApprovalPreSto
 }
 
 // getOrCreateState 获取或创建状态记录
-func (ac *ApprovalCoordinator) getOrCreateState(userID, projectID uint) *ApprovalState {
+func (ac *ApprovalCoordinator) getOrCreateState(userID, projectID uint) *model.ApprovalState {
 	key := ac.generateKey(userID, projectID)
 
 	if val, ok := ac.stateRegistry.Load(key); ok {
-		return val.(*ApprovalState)
+		return val.(*model.ApprovalState)
 	}
 
-	return &ApprovalState{
+	return &model.ApprovalState{
 		UserID:         userID,
 		ProjectID:      projectID,
 		ApprovalRecv:   false,
@@ -252,7 +242,7 @@ func (ac *ApprovalCoordinator) generateKey(userID, projectID uint) string {
 }
 
 // checkAndTransition 检查是否可以触发状态转换
-func (ac *ApprovalCoordinator) checkAndTransition(state *ApprovalState, key string) {
+func (ac *ApprovalCoordinator) checkAndTransition(state *model.ApprovalState, key string) {
 	if !state.ApprovalRecv || !state.PreStorageRecv {
 		return
 	}
@@ -331,7 +321,7 @@ func (ac *ApprovalCoordinator) cleanupExpiredStates(ctx context.Context) {
 			return
 		case <-ticker.C:
 			ac.stateRegistry.Range(func(key, value interface{}) bool {
-				state := value.(*ApprovalState)
+				state := value.(*model.ApprovalState)
 				rec, err := ac.changeReq.GetStatusRecord(context.Background(), state.UserID)
 				if err == nil && rec != nil {
 					return true

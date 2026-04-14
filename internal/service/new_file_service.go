@@ -7,33 +7,29 @@ import (
 	"mygo_bangforai/internal/repository"
 )
 
-// FileInfo 文件信息，用于批量登记
-type FileInfo struct {
-	Name string `json:"name"`
-	Path string `json:"path"`
-	Hash string `json:"hash"` // 可选，用于后续上传校验
-}
-
 type NewFileServiceType struct {
 	newRealFileRepo      repository.NewRealFileRepo
+	newCloudFileRepo     repository.NewCloudFileRepo
 	mountRelationService *MountRelationService
-	cloudFileLocalRepo   repository.CloudFileLocalRepository
+	cloudFileLocalRepo   repository.NewCloudFileLocalRepo
 }
 
 func NewNewFileService(
 	newRealFileRepo repository.NewRealFileRepo,
+	newCloudFileRepo repository.NewCloudFileRepo,
 	mountRelationService *MountRelationService,
-	cloudFileLocalRepo repository.CloudFileLocalRepository,
+	cloudFileLocalRepo repository.NewCloudFileLocalRepo,
 ) *NewFileServiceType {
 	return &NewFileServiceType{
 		newRealFileRepo:      newRealFileRepo,
+		newCloudFileRepo:     newCloudFileRepo,
 		mountRelationService: mountRelationService,
 		cloudFileLocalRepo:   cloudFileLocalRepo,
 	}
 }
 
 // LoginFile 登记文件（支持批量）
-func (s *NewFileServiceType) LoginFile(ctx context.Context, userID uint, files []FileInfo) ([]uint, error) {
+func (s *NewFileServiceType) LoginFile(ctx context.Context, userID uint, files []model.RealFileInfo) ([]uint, error) {
 	if len(files) == 0 {
 		return []uint{}, nil
 	}
@@ -73,11 +69,8 @@ func (s *NewFileServiceType) NewMount(ctx context.Context, userID uint, fileID u
 		return err
 	}
 
-	// 检查用户是否有权访问此文件
-	// 如果是登记者本人，直接允许
-	// 否则返回错误（当前单开发者版本）
 	if file.UserID != userID {
-		return errors.NewError(errors.PermissionDenied, "只有文件登记者可以将文件挂载到虚拟文件夹", "internal/service/new_file_service.go/NewMount")
+
 	}
 
 	// 创建挂载关系
@@ -95,11 +88,8 @@ func (s *NewFileServiceType) DeleteMount(ctx context.Context, userID uint, fileI
 		return err
 	}
 
-	// 检查用户是否有权限解除挂载
-	// 如果是文件登记者，允许解除挂载
 	if file.UserID != userID {
-		// 非登记者需要检查虚拟文件夹权限
-		// DeleteMountRelation 会进行权限检查
+
 	}
 
 	// 删除挂载关系
@@ -131,11 +121,8 @@ func (s *NewFileServiceType) NewRename(ctx context.Context, userID uint, fileID 
 		return err
 	}
 
-	// 检查用户是否有权限重命名
-	// 如果是登记者本人，直接允许
-	// 否则返回错误（当前单开发者版本）
 	if file.UserID != userID {
-		return errors.NewError(errors.PermissionDenied, "只有文件登记者可以重命名文件", "internal/service/new_file_service.go/NewRename")
+
 	}
 
 	// 更新文件名
@@ -158,8 +145,18 @@ func (s *NewFileServiceType) GetFileLocalPath(ctx context.Context, userID uint, 
 		return realFile.Path, nil
 	}
 
-	// 否则查询 CloudFileLocal 获取本地缓存路径
-	// TODO: 需要关联 CloudFile 和 NewRealFile（通过哈希或独立关联表）
-	// 暂时返回原始路径（单开发者版本）
-	return realFile.Path, nil
+	// 非登记者，查询本地缓存路径
+	// 关联链：NewRealFile -> NewCloudFile -> NewCloudFileLocal
+	cloudFile, err := s.newCloudFileRepo.GetByNewRealFileID(ctx, realFile.ID)
+	if err != nil {
+		return "", err
+	}
+
+	// 查询当前用户的本地缓存记录
+	localFile, err := s.cloudFileLocalRepo.GetByUserAndCloudFile(ctx, userID, cloudFile.ID)
+	if err != nil {
+		return "", err
+	}
+
+	return localFile.LocalPath, nil
 }

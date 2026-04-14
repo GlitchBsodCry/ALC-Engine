@@ -7,6 +7,7 @@ import (
 
 	"mygo_bangforai/api/model"
 	"mygo_bangforai/internal/ai"
+	"mygo_bangforai/internal/rabbitmq"
 	"mygo_bangforai/internal/repository"
 
 	"github.com/google/uuid"
@@ -30,9 +31,10 @@ func NewChatService(chatRepo repository.ChatRepository) (*ChatService, error) {
 func (s *ChatService) CreateChat(ctx context.Context, userID uint, question string) (string, string, error) {
 	sessionID := uuid.New().String()
 	session := &model.Session{
-		ID:     sessionID,
-		UserID: userID,
-		Title:  question,
+		ID:        sessionID,
+		UserID:    userID,
+		Title:     question,
+		ModelType: ai.ModelTypeSiliconflow,
 	}
 	if err := s.chatRepo.CreateSession(ctx, session); err != nil {
 		return "", "", err
@@ -42,12 +44,23 @@ func (s *ChatService) CreateChat(ctx context.Context, userID uint, question stri
 	if err != nil {
 		return "", "", err
 	}
+	helper.SetUserID(userID)
 
 	saveMsg := func(msg *model.ChatMessage) (*model.ChatMessage, error) {
 		err := s.chatRepo.SaveMessage(ctx, msg)
 		return msg, err
 	}
 	helper.SetSaveFunc(saveMsg)
+
+	messageFunc := func(sessionID, content string, isUser bool) error {
+		mqMsg := rabbitmq.GenerateMessageMQParam(sessionID, content, "", isUser)
+		rmq := rabbitmq.GetRabbitMQ()
+		if rmq != nil {
+			return rmq.Publish(mqMsg)
+		}
+		return nil
+	}
+	helper.SetMessageFunc(messageFunc)
 
 	resp, err := helper.GenerateResponse(ctx, question)
 	if err != nil {
@@ -75,6 +88,7 @@ func (s *ChatService) ContinueChat(ctx context.Context, userID uint, sessionID, 
 	if err != nil {
 		return "", err
 	}
+	helper.SetUserID(userID)
 
 	for _, msg := range history {
 		helper.AddMessage(msg.Content, msg.IsUser)
@@ -85,6 +99,16 @@ func (s *ChatService) ContinueChat(ctx context.Context, userID uint, sessionID, 
 		return msg, err
 	}
 	helper.SetSaveFunc(saveMsg)
+
+	messageFunc := func(sessionID, content string, isUser bool) error {
+		mqMsg := rabbitmq.GenerateMessageMQParam(sessionID, content, "", isUser)
+		rmq := rabbitmq.GetRabbitMQ()
+		if rmq != nil {
+			return rmq.Publish(mqMsg)
+		}
+		return nil
+	}
+	helper.SetMessageFunc(messageFunc)
 
 	resp, err := helper.GenerateResponse(ctx, question)
 	if err != nil {
@@ -114,9 +138,10 @@ func (s *ChatService) GetUserSessions(ctx context.Context, userID uint) ([]model
 func (s *ChatService) StreamChat(ctx context.Context, userID uint, question string, callback func(string)) (string, error) {
 	sessionID := uuid.New().String()
 	session := &model.Session{
-		ID:     sessionID,
-		UserID: userID,
-		Title:  question,
+		ID:        sessionID,
+		UserID:    userID,
+		Title:     question,
+		ModelType: ai.ModelTypeSiliconflow,
 	}
 	if err := s.chatRepo.CreateSession(ctx, session); err != nil {
 		return "", err
@@ -126,12 +151,23 @@ func (s *ChatService) StreamChat(ctx context.Context, userID uint, question stri
 	if err != nil {
 		return "", err
 	}
+	helper.SetUserID(userID)
 
 	saveMsg := func(msg *model.ChatMessage) (*model.ChatMessage, error) {
 		err := s.chatRepo.SaveMessage(ctx, msg)
 		return msg, err
 	}
 	helper.SetSaveFunc(saveMsg)
+
+	messageFunc := func(sessionID, content string, isUser bool) error {
+		mqMsg := rabbitmq.GenerateMessageMQParam(sessionID, content, "", isUser)
+		rmq := rabbitmq.GetRabbitMQ()
+		if rmq != nil {
+			return rmq.Publish(mqMsg)
+		}
+		return nil
+	}
+	helper.SetMessageFunc(messageFunc)
 
 	var fullAnswer strings.Builder
 	wrappedCallback := func(chunk string) {
@@ -165,6 +201,7 @@ func (s *ChatService) StreamContinueChat(ctx context.Context, userID uint, sessi
 	if err != nil {
 		return err
 	}
+	helper.SetUserID(userID)
 
 	for _, msg := range history {
 		helper.AddMessage(msg.Content, msg.IsUser)
@@ -175,6 +212,16 @@ func (s *ChatService) StreamContinueChat(ctx context.Context, userID uint, sessi
 		return msg, err
 	}
 	helper.SetSaveFunc(saveMsg)
+
+	messageFunc := func(sessionID, content string, isUser bool) error {
+		mqMsg := rabbitmq.GenerateMessageMQParam(sessionID, content, "", isUser)
+		rmq := rabbitmq.GetRabbitMQ()
+		if rmq != nil {
+			return rmq.Publish(mqMsg)
+		}
+		return nil
+	}
+	helper.SetMessageFunc(messageFunc)
 
 	var fullAnswer strings.Builder
 	wrappedCallback := func(chunk string) {

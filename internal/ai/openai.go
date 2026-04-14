@@ -2,10 +2,10 @@ package ai
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"strings"
 
+	"mygo_bangforai/api/errors"
 	"mygo_bangforai/pkg/config"
 	"mygo_bangforai/pkg/logger"
 
@@ -46,7 +46,7 @@ func NewSiliconFlowModel(ctx context.Context) (*SiliconFlowModel, error) {
 	})
 	if err != nil {
 		logger.Error("创建硅基流动模型失败", zap.Error(err))
-		return nil, fmt.Errorf("create siliconflow model failed: %w", err)
+		return nil, errors.WrapError(err, errors.ServiceError, "create siliconflow model failed", "NewSiliconFlowModel")
 	}
 
 	logger.Info("硅基流动模型初始化成功",
@@ -66,7 +66,7 @@ func (s *SiliconFlowModel) GenerateResponse(ctx context.Context, messages []*sch
 	resp, err := s.llm.Generate(ctx, messages)
 	if err != nil {
 		logger.Error("AI生成响应失败", zap.Error(err))
-		return nil, fmt.Errorf("siliconflow generate failed: %w", err)
+		return nil, errors.WrapError(err, errors.ServiceError, "siliconflow generate failed", "SiliconFlowModel.GenerateResponse")
 	}
 
 	logger.Debug("AI响应生成成功",
@@ -81,7 +81,7 @@ func (s *SiliconFlowModel) StreamResponse(ctx context.Context, messages []*schem
 	stream, err := s.llm.Stream(ctx, messages)
 	if err != nil {
 		logger.Error("AI流式响应失败", zap.Error(err))
-		return "", fmt.Errorf("siliconflow stream failed: %w", err)
+		return "", errors.WrapError(err, errors.ServiceError, "siliconflow stream failed", "SiliconFlowModel.StreamResponse")
 	}
 	defer stream.Close()
 
@@ -94,7 +94,7 @@ func (s *SiliconFlowModel) StreamResponse(ctx context.Context, messages []*schem
 		}
 		if err != nil {
 			logger.Error("流式响应接收失败", zap.Error(err))
-			return "", fmt.Errorf("siliconflow stream recv failed: %w", err)
+			return "", errors.WrapError(err, errors.ServiceError, "siliconflow stream recv failed", "SiliconFlowModel.StreamResponse")
 		}
 		if len(msg.Content) > 0 {
 			fullResp.WriteString(msg.Content)
@@ -109,5 +109,5 @@ func (s *SiliconFlowModel) StreamResponse(ctx context.Context, messages []*schem
 }
 
 func (s *SiliconFlowModel) GetModelType() string {
-	return "siliconflow"
+	return ModelTypeSiliconflow
 }
