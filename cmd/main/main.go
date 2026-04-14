@@ -200,6 +200,11 @@ func main() {
 	control.InitAIRAGService(aiRAGService)
 	logger.Info("AI RAG服务初始化完成")
 
+	// 初始化AI MCP服务
+	aiMCPService := service.NewAIMCPService()
+	control.InitAIMCPService(aiMCPService)
+	logger.Info("AI MCP服务初始化完成")
+
 	projectService := service.NewProjectService(repos.Project, repos.PostgresProject, repos.ChangeRequest, virtualRootService)
 	control.InitProjectService(projectService)
 	logger.Info("Project服务初始化完成")

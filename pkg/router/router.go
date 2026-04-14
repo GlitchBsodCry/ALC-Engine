@@ -58,6 +58,14 @@ func SetupRouter() (*gin.Engine, error) {
 		raiRAG.POST("/query", control.QueryRAG)            // 查询RAG知识库
 		raiRAG.DELETE("/index", control.DeleteRAGIndex)    // 删除RAG索引
 	}
+
+	// AI MCP路由
+	raiMCP := r.Group("/ai/mcp")
+	raiMCP.Use(middleware.AuthMiddleware())
+	{
+		raiMCP.POST("/weather", control.CallWeather) // 天气查询
+		raiMCP.POST("/call", control.CallTool)       // 通用工具调用
+	}
 	// 项目路由（无项目权限验证）
 	rproject := r.Group("/project")
 	rproject.Use(middleware.AuthMiddleware())
