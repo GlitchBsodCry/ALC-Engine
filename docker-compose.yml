@@ -61,6 +61,32 @@ services:
       timeout: 10s
       retries: 5
 
+  onnxruntime:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/mcr.microsoft.com/azureml/onnxruntime:latest-cuda
+    container_name: onnxruntime
+    hostname: onnxruntime
+    ports:
+      - "8000:8000"      # ONNX Runtime 服务端口
+    volumes:
+      - E:\docker-data\onnxruntime\models:/models  # 模型文件持久化
+      - E:\docker-data\onnxruntime\logs:/logs      # 日志持久化
+    environment:
+      - ONNXRUNTIME_LOG_LEVEL=INFO
+      - MODEL_PATH=/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import onnxruntime; print('ONNX Runtime OK')\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
 # 使用绑定挂载到E盘，不再需要volumes定义
 # 启动: docker-compose up -d
 # 停止: docker-compose down

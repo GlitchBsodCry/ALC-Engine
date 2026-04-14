@@ -190,6 +190,11 @@ func main() {
 	control.InitChatService(chatService)
 	logger.Info("Chat服务初始化完成")
 
+	// 初始化AI图像识别服务
+	aiImageService := service.NewAIImageService()
+	control.InitAIImageService(aiImageService)
+	logger.Info("AI图像识别服务初始化完成")
+
 	projectService := service.NewProjectService(repos.Project, repos.PostgresProject, repos.ChangeRequest, virtualRootService)
 	control.InitProjectService(projectService)
 	logger.Info("Project服务初始化完成")

@@ -42,6 +42,13 @@ func SetupRouter() (*gin.Engine, error) {
 		rchat.POST("/stream/create", control.StreamCreateChat)     // 流式创建新聊天
 		rchat.POST("/stream/continue", control.StreamContinueChat) // 流式继续聊天
 	}
+
+	// AI图像识别路由
+	raiImage := r.Group("/ai/image")
+	raiImage.Use(middleware.AuthMiddleware())
+	{
+		raiImage.POST("/recognize", control.RecognizeImage) // 图像识别
+	}
 	// 项目路由（无项目权限验证）
 	rproject := r.Group("/project")
 	rproject.Use(middleware.AuthMiddleware())

@@ -6,3 +6,4 @@ logs/
 *.log
 AGENTS.md
 plan/
+.cursor
