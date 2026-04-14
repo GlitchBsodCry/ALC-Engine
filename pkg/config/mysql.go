@@ -55,6 +55,7 @@ func autoMigrate() error {
 		&model.User{},
 		&model.Session{},
 		&model.ChatMessage{},
+		&model.AIImageRecognition{},
 		&model.Project{},
 		&model.ProjectMember{},
 	)

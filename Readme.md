@@ -9,11 +9,15 @@ ALC Engine (Ai Assistant Lite Cloud Engine) 是一个集成了AI智能对话与�
 
 ## 🎯 核心功能
 
-### AI聊天模块 
+### AI聊天模块
 
-- AI 对话引擎集成（多会话 + 流式输出）
-- AI 图像模型推理（ONNXRuntime 部署 + 推理加速）
-- 正在实现中
+- 🤖 **多模型支持** - OpenAI、RAG、MCP、Ollama 等多种模型类型
+- 💬 **会话管理** - 完整的会话创建、继续、历史记录管理
+- 🖼️ **图像识别** - ONNXRuntime 图像推理与识别
+- 📚 **RAG检索增强** - 文档向量化与检索增强生成
+- 🔧 **MCP工具调用** - Model Context Protocol 外部工具调用能力
+- 🔊 **TTS语音合成** - 百度语音合成集成
+- ✅ **流式响应** - 支持实时流式输出
 
 ### 虚拟文件夹系统 
 
@@ -117,11 +121,25 @@ postgresql:
 
 ### AI聊天 (核心)
 
-- `POST /chat/create` - 创建新聊天会话
-- `POST /chat/continue` - 继续现有会话
-- `POST /chat/stream/create` - 流式创建会话
-- `POST /chat/stream/continue` - 流式继续会话
-- `GET /chat/sessions` - 获取用户会话列表
+- `POST /ai/chat/create` - 创建新聊天会话
+- `POST /ai/chat/continue` - 继续现有会话
+- `POST /ai/chat/stream/create` - 流式创建会话
+- `POST /ai/chat/stream/continue` - 流式继续会话
+- `GET /ai/chat/sessions` - 获取用户会话列表
+
+### AI图像识别
+
+- `POST /ai/image/recognize` - 图像识别
+- `GET /ai/image/history` - 获取识别历史
+
+### AI RAG服务
+
+- `POST /ai/rag/index` - 文档向量化索引
+- `POST /ai/rag/query` - RAG检索问答
+
+### AI TTS语音合成
+
+- `POST /ai/tts/synthesize` - 文本转语音
 
 ### 文件管理 (核心)
 
@@ -174,6 +192,10 @@ ALC Engine/
 ├── image/                 # 图片资源
 ├── internal/              # 内部包
 │   ├── ai/               # AI模块 (核心)
+│   │   ├── image/        # 图像识别
+│   │   ├── rag/          # RAG检索增强
+│   │   ├── mcp/          # MCP工具调用
+│   │   └── tts/          # 语音合成
 │   ├── control/          # 控制器层
 │   ├── rabbitmq/         # RabbitMQ消息队列
 │   ├── repository/       # 数据访问层
@@ -210,14 +232,18 @@ ALC Engine/
 - ✅ 多人协作优化
 - ✅ 变更审批流程
 - ✅ AI聊天系统完整实现
+- ✅ AI图像识别（ONNX）
+- ✅ AI RAG检索增强
+- ✅ AI MCP工具调用
+- ✅ AI TTS语音合成
 - ✅ 虚拟文件夹核心功能
 - ✅ 云文件存储集成
 - ✅ 项目管理基础框架
 
 ### 后续规划
 
-- 更丰富的AI工具集成（V3）
-- 增强项目实时性（V4）
+- AI辅助虚拟文件夹管理
+- 更好的实时性
 
 <br />
 

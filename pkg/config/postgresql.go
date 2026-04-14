@@ -64,6 +64,10 @@ func autoMigratePostgreSQL() error {
 		&model.Tag{},
 		&model.TagRelation{},
 		&model.Test{},
+		// AI相关模型
+		&model.Session{},
+		&model.ChatMessage{},
+		&model.AIImageRecognition{},
 	)
 
 	if err != nil {
